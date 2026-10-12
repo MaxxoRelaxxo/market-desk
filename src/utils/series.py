@@ -1,39 +1,39 @@
 # FRED data
 FRED_SERIES = {
     "nominal": {
-        "2Y": "DGS2",
-        "5Y": "DGS5",
-        "7Y": "DGS7",
-        "10Y": "DGS10",
-        "30Y": "DGS30",
+        "USGOVB2Y": "DGS2",
+        "USGOVB5Y": "DGS5",
+        "USGOVB7Y": "DGS7",
+        "USGOVB10Y": "DGS10",
+        "USGOVB30Y": "DGS30",
     },
     "tips": {
-        "5Y": "DFII5",
-        "7Y": "DFII7",
-        "10Y": "DFII10",
-        "30Y": "DFII30",
+        "USGOVBI5Y": "DFII5",
+        "USGOVBI7Y": "DFII7",
+        "USGOVBI10Y": "DFII10",
+        "USGOVBI30Y": "DFII30",
     },
     "policy": {
-        "fed_funds": "DFF",
-        "sofr": "SOFR",
+        "USFEDFUNDS": "DFF",
+        "USSOFR": "SOFR",
     },
     "credit": {
-        "ig_oas": "BAMLC0A0CM",
-        "hy_oas": "BAMLH0A0HYM2",
+        "USIG_OAS": "BAMLC0A0CM",
+        "USHY_OAS": "BAMLH0A0HYM2",
     },
     "breakeven": {
-        "5Y": "T5YIE",
-        "10Y": "T10YIE",
-        "30Y": "T30YIEM",
+        "USBE5Y": "T5YIE",
+        "USBE10Y": "T10YIE",
+        "USBE30Y": "T30YIEM",
     },
     "forward_inflation": {
-        "5Y5Y": "T5YIFR",
+        "USBE5Y5Y": "T5YIFR",
     },
     "spreads": {
-        "10Y2Y": "T10Y2Y",
-        "10Y3M": "T10Y3M",
+        "US10Y2Y": "T10Y2Y",
+        "US10Y3M": "T10Y3M",
     },
     "mortgage": {
-        "30Y": "MORTGAGE30US",
+        "USMORTGAGE30Y": "MORTGAGE30US",
     },
 }
