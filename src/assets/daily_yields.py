@@ -6,7 +6,7 @@ Daily 10Y euro government bond yields.
 - Banca d'Italia: BTP 10Y benchmark (cube BMK0200).
 - Banco de España: 10Y Bono (D_G0B1F0ZP), listaSeries API, one calendar year per call.
 - National Bank of Belgium: long-term yield of the reference loans, 11am (BE2,DF_IROLOYLD),
-  SDMX-JSON from the NSI web service, for BE, AT, GR, IE, PT (one request per country).
+  SDMX-JSON from the NSI web service. Only BE has data (AT, GR, IE, PT: codes but no observations).
 
 Output: src/data/egb_daily.parquet  ->  date | country | yield | source
 """
@@ -35,7 +35,7 @@ BDI_SERIES = "MFN_BMK.D.020.922.0.EUR.210"
 BDE_URL = "https://app.bde.es/bierest/resources/srdatosapp/listaSeries"
 BDE_SERIES = "D_G0B1F0ZP"
 NBB_URL = "https://nsidisseminate-stat.nbb.be/rest/data/BE2,DF_IROLOYLD,1.0"
-NBB_COUNTRIES = ["BE", "AT", "GR", "IE", "PT"]
+NBB_COUNTRIES = ["BE"]  # AT, GR, IE, PT are in the code list but return no observations
 NBB_HEADERS = {  # the NBB WAF rejects non-browser requests
     "Accept": "application/vnd.sdmx.data+json",
     "Accept-Language": "en",
