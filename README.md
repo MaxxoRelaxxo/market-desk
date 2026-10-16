@@ -31,7 +31,7 @@ Add a theme: one `build_<theme>()` in `scripts/build_data.py` + one component in
 `spread_it (bp vs Bund) = FE_t + b_t · [debt, fiscal]_it + e_it`
 
 - Yields: daily 10Y only (`src/data/egb_daily.parquet`): DE, FI, FR, NL from Riksbank SWEA (`{CC}GVB10Y`,
-  `RIKSBANK_API_KEY` in `.env`), IT and BTP 10Y from Banca d'Italia (`MFN_BMK.D.020.922.0.EUR.210`).
+  `RIKSBANK_API_KEY` in `.env`), IT (BTP 10Y) from Banca d'Italia (`MFN_BMK.D.020.922.0.EUR.210`).
   Only countries with a daily source are in the model; the sample starts when all of them have data.
 - Fundamentals from AMECO as difference vs Germany, 12M-forward blend (month m weights m/12 on next year).
 - Rolling 3Y (756 business days) pooled OLS with daily fixed effects → pure cross-country relative value.
