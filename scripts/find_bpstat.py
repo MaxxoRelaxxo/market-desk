@@ -2,20 +2,20 @@
 """
 Find daily Portuguese government bond yield series in Banco de Portugal's BPstat API.
 
-    uv run python scripts/find_bpstat.py
+    uv run python scripts/find_bpstat.py            # every dataset in domain 21 (Interest rates)
+    uv run python scripts/find_bpstat.py 21 207     # other domains
 
-Prints domain id | dataset id | series id | label for series that look like
-treasury bond yields. Put the 10Y daily one in BPSTAT_SERIES in src/assets/daily_yields.py.
+Prints domain id | dataset id | series id | label. Put the daily 10Y one in BPSTAT_SERIES
+in src/assets/daily_yields.py.
 """
 
 import re
+import sys
 
 import requests
 
 BASE = "https://bpstat.bportugal.pt/data/v1"
-DOMAIN_RE = re.compile(r"interest|rate|financial market|securit|bond", re.IGNORECASE)
-DATASET_RE = re.compile(r"bond|treasur|yield|obriga|rendib|government|public debt", re.IGNORECASE)
-SERIES_RE = re.compile(r"10|ten", re.IGNORECASE)
+SERIES_RE = re.compile(r"treasur|bond|\bOT\b|yield|government|public debt|10 year|10-year", re.IGNORECASE)
 
 
 def get(url: str, **params) -> dict | list:
@@ -24,26 +24,26 @@ def get(url: str, **params) -> dict | list:
     return r.json()
 
 
-def paged_items(path: str) -> list[dict]:
-    items, url = [], path
+def datasets(domain: int) -> list[dict]:
+    items, url = [], f"domains/{domain}/datasets"
     while url:
         js = get(url)
-        items += js.get("link", {}).get("item", [])
-        url = js.get("extension", {}).get("next_page")
+        page = js.get("link", {}).get("item") if isinstance(js, dict) else js
+        if page is None:  # unexpected layout: show it
+            print(f"  unexpected response keys: {list(js)[:10]} {str(js)[:300]}")
+            return items
+        items += page
+        url = js.get("extension", {}).get("next_page") if isinstance(js, dict) else None
     return items
 
 
-domains = [d for d in get("domains") if d.get("has_series") or d.get("num_datasets")]
-for d in domains:
-    if not DOMAIN_RE.search(d["label"]):
-        continue
-    print(f"\n# domain {d['id']}: {d['label']}")
-    for ds in paged_items(f"domains/{d['id']}/datasets"):
-        label, ds_id = ds["label"], ds["extension"]["id"]
-        if not DATASET_RE.search(label):
-            continue
-        print(f"  dataset {ds_id}: {label} ({ds['extension'].get('num_series')} series)")
-        js = get(f"domains/{d['id']}/datasets/{ds_id}", obs_last_n=1)
+for domain in [int(a) for a in sys.argv[1:]] or [21]:
+    print(f"\n# domain {domain}")
+    for ds in datasets(domain):
+        ext = ds.get("extension", {})
+        ds_id = ext.get("id") or ds.get("id")
+        print(f"  dataset {ds_id}: {ds.get('label')} ({ext.get('num_series')} series)")
+        js = get(f"domains/{domain}/datasets/{ds_id}", obs_last_n=1)
         for s in js.get("extension", {}).get("series", []):
-            if SERIES_RE.search(s["label"]):
+            if SERIES_RE.search(s.get("label", "")):
                 print(f"    series {s['id']}: {s['label']}")
