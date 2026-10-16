@@ -73,3 +73,11 @@ code, pre { font-family: var(--font); }
   .card { grid-column: span 1 !important; }
   .clock { display: none; }
 }
+
+/* EGB relative value */
+.eq-line { color: var(--muted); margin: -6px 0 12px; }
+.table.rv th, .table.rv td { text-align: center; }
+.table.rv td:first-child, .table.rv th:first-child { text-align: left; }
+.table.rv .sig { font-weight: 600; }
+.table.rv .sig-cheap { background: #24552E; }
+.table.rv .sig-rich { background: #641B2B; }

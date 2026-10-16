@@ -99,33 +99,35 @@ def _weekly(df: pl.DataFrame, by: str | None = None) -> pl.DataFrame:
 
 
 def build_egb() -> None:
-    model, betas = egb.run_model()
+    model = egb.run_model()
     snap = egb.snapshot(model).with_columns(pl.col("country").replace_strict(egb.NAMES).alias("name"))
     recent = model.filter(pl.col("date") >= pl.col("date").max().dt.offset_by("-2y"))
-    cols = ["date", "spread", "fair", "residual", "z"]
+    cols = ["date", "spread", "fair", "residual", "z_cs"]
+    fit = snap.row(0, named=True)
 
     def per_country(df: pl.DataFrame) -> dict:
-        return {
-            c: _records(g.select(cols), 2)
-            for (c,), g in df.filter(pl.col("country") != egb.BENCH).group_by("country", maintain_order=True)
-        }
+        return {c: _records(g.select(cols), 2) for (c,), g in df.group_by("country", maintain_order=True)}
 
     spreads = (
         _weekly(model.select("date", "country", "spread"), "country")
-        .pivot(on="country", index="date", values="spread").sort("date").drop(egb.BENCH)
+        .pivot(on="country", index="date", values="spread").sort("date")
     )
-    bund = recent.filter(pl.col("country") == egb.BENCH).select("date", pl.col("yield").alias("bund"))
+    bund = (
+        egb.load_spreads().filter(pl.col("country") == egb.BENCH, pl.col("date") >= recent["date"].min())
+        .select("date", pl.col("yield").alias("bund"))
+    )
 
     _dump({
         "asof": model["date"].max(),
         "factors": egb.FACTORS,
-        "names": {c: egb.NAMES[c] for c in model["country"].unique().sort() if c != egb.BENCH},
+        "lag_days": egb.LAG_DAYS,
+        "fit": {k: fit[k] for k in ["alpha", *(f"b_{f}" for f in egb.FACTORS), "r2", "n", "sigma"]},
+        "names": {c: egb.NAMES[c] for c in model["country"].unique().sort()},
         "snapshot": _records(snap, 2),
         "bund": _records(bund.sort("date"), 3),
         "spreads": _records(spreads, 1),
         "daily": per_country(recent),                                       # last 2Y, daily
         "series": per_country(_weekly(model.select("country", *cols), "country")),  # full, weekly
-        "betas": _records(_weekly(betas).rename({f"b_{f}": f for f in egb.FACTORS}), 2),
         "mean_reversion": _records(egb.mean_reversion(model), 2),
     }, "egb.json")
 

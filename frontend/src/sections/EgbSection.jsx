@@ -3,22 +3,22 @@ import {
   Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, LineChart, ReferenceLine,
   ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis,
 } from "recharts";
-import { Card, StatCard, Status, Tip, Toggle } from "../components/ui";
+import { Card, Status, Tip, Toggle } from "../components/ui";
 import { COLORS, DOWN, UP, axis, fmt, signed, ticks, useData } from "../lib";
 
-const FACTOR_LABEL = { debt: "Debt", fiscal: "Fiscal balance", ca: "Current account" };
-const SIGNAL_COLOR = { CHEAP: UP, RICH: DOWN, FAIR: "#E8EDF2" };
-const SIGNAL_CLS = { CHEAP: "up", RICH: "down", FAIR: "" };
+const FACTOR_LABEL = { debt: "Debt", tds: "TDS" };
+const SIGNAL_COLOR = { CHEAP: UP, RICH: DOWN, NEUTRAL: "#E8EDF2" };
+const SIGNAL_CLS = { CHEAP: "sig-cheap", RICH: "sig-rich", NEUTRAL: "" };
 
 function FairTip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const r = payload[0].payload;
   return (
     <div className="tt">
-      <div className="tt-label">{r.country} · {r.name}</div>
-      <div className="tt-row"><span className="tt-name">Actual</span><span className="tt-val">{fmt(r.spread, 0)} bp</span></div>
-      <div className="tt-row"><span className="tt-name">Fitted</span><span className="tt-val">{fmt(r.fair, 0)} bp</span></div>
-      <div className="tt-row"><span className="tt-name">Residual</span><span className="tt-val">{signed(r.residual, 0)} bp</span></div>
+      <div className="tt-label">{r.name}</div>
+      <div className="tt-row"><span className="tt-name">Actual</span><span className="tt-val">{fmt(r.spread, 1)} bp</span></div>
+      <div className="tt-row"><span className="tt-name">Fitted</span><span className="tt-val">{fmt(r.fair, 1)} bp</span></div>
+      <div className="tt-row"><span className="tt-name">Residual</span><span className="tt-val">{signed(r.residual, 1)} bp</span></div>
       <div className="tt-row"><span className="tt-name">Signal</span><span className="tt-val">{r.signal}</span></div>
     </div>
   );
@@ -26,28 +26,21 @@ function FairTip({ active, payload }) {
 
 export default function EgbSection() {
   const state = useData("egb.json");
-  const [country, setCountry] = useState("IT");
+  const [country, setCountry] = useState("FR");
   const [freq, setFreq] = useState("daily");
 
   const d = state.data;
   if (!d) return <Status state={state} what="EGB data" />;
 
-  const series = (freq === "daily" ? d.daily : d.series)[country] ?? [];
-  const bund = d.bund;
-  const bundLast = bund[bund.length - 1];
-  const bundPrev = bund[bund.length - 2];
-  const snap = d.snapshot;
-  const snapDate = snap[0]?.date;
-  const base = snap[0]?.base;
-  const ranked = snap.filter((r) => r.z != null);
-  const cheap = ranked[0];
-  const rich = ranked[ranked.length - 1];
-  const beta = d.betas[d.betas.length - 1];
+  const { fit, snapshot: snap, factors } = d;
   const countries = Object.keys(d.names);
+  const series = (freq === "daily" ? d.daily : d.series)[country] ?? [];
   const sel = snap.find((r) => r.country === country);
+  const equation = `Spread = ${fmt(fit.alpha, 1)} ${factors.map((f) => `${signed(fit[`b_${f}`], 2)}·${f}`).join(" ")}`;
 
-  const lo = Math.floor(Math.min(0, ...snap.flatMap((r) => [r.fair, r.spread])) / 20) * 20;
-  const hi = Math.ceil(Math.max(...snap.flatMap((r) => [r.fair, r.spread])) / 20) * 20 + 20;
+  const all = snap.flatMap((r) => [r.fair, r.spread]);
+  const lo = Math.floor(Math.min(0, ...all) / 20) * 20;
+  const hi = Math.ceil(Math.max(...all) / 20) * 20 + 20;
   const fvTicks = Array.from({ length: (hi - lo) / 20 + 1 }, (_, i) => lo + i * 20);
   const dot = ({ cx, cy, payload: r }) => (
     <g style={{ cursor: "pointer" }}>
@@ -55,32 +48,56 @@ export default function EgbSection() {
       <text x={cx} y={cy + 16} textAnchor="middle" fill="#AAB3BF" fontSize={10}>{r.country}</text>
     </g>
   );
-  const decomp = snap.map((r) => ({ ...r, ...Object.fromEntries(d.factors.map((f) => [f, r[`c_${f}`]])) }));
+  const decomp = snap.map((r) => ({ ...r, ...Object.fromEntries(factors.map((f) => [f, r[`c_${f}`]])) }));
 
   return (
     <div>
       <div className="section-head">
-        <h2>EGB SPREADS <span className="muted">| Fair value vs fundamentals</span></h2>
-        <div className="muted">10Y spread vs Bund · daily · as of {snapDate}</div>
+        <h2>EGB RELATIVE VALUE <span className="muted">| 10Y spread vs Bund</span></h2>
       </div>
-
-      <div className="stats">
-        <StatCard label="Bund 10Y" value={bundLast.bund} unit="%" delta={(bundLast.bund - bundPrev.bund) * 100} />
-        <StatCard label={`Cheapest · ${cheap.name}`} value={cheap.residual} unit="bp" digits={0} />
-        <StatCard label={`Richest · ${rich.name}`} value={rich.residual} unit="bp" digits={0} />
-        {d.factors.map((f) => <StatCard key={f} label={`β ${FACTOR_LABEL[f]}`} value={beta[f]} unit="bp/pp" />)}
+      <div className="eq-line">
+        {d.asof} | {equation} | R² {fmt(fit.r2, 2)} | N {fit.n} | σ {fmt(fit.sigma, 1)} bps | lag {d.lag_days}d
       </div>
 
       <div className="grid">
-        <Card
-          title={`FAIR VALUE ${snapDate} (ABOVE LINE = CHEAP)`}
-          note="Fitted spread = cross-country average + β · (country gap vs Germany − average gap). Green/red: |z| > 1. Click a dot for details."
-        >
+        <Card title="RELATIVE VALUE MONITOR" span={2}
+          note="Debt, budget, current account: % of GDP, last full year (AMECO) with publication lag. TDS = −(budget + current account) / 2. Residual = actual − fitted (bp, > 0 = cheap). z cross-sec. = residual / regression σ; signal at |z| > 1. z 104w = residual vs its own 104-week history. Click a row for details.">
+          <div className="table-wrap">
+            <table className="table rv">
+              <thead>
+                <tr>
+                  <th>Country</th><th>Debt</th><th>Budget</th><th>Current acc.</th><th>TDS</th>
+                  <th>Actual</th><th>Fitted</th><th>Residual</th><th>z cross-sec.</th><th>z 104w</th><th>Signal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {snap.map((r) => (
+                  <tr key={r.country} className={r.country === country ? "selected" : ""} onClick={() => setCountry(r.country)}>
+                    <td>{r.name}</td>
+                    <td>{fmt(r.debt)}</td>
+                    <td>{fmt(r.fiscal)}</td>
+                    <td>{fmt(r.ca)}</td>
+                    <td>{fmt(r.tds)}</td>
+                    <td>{fmt(r.spread)}</td>
+                    <td>{fmt(r.fair)}</td>
+                    <td>{fmt(r.residual)}</td>
+                    <td>{fmt(r.z_cs)}</td>
+                    <td>{fmt(r.z_ts)}</td>
+                    <td className={`sig ${SIGNAL_CLS[r.signal]}`}>{r.signal}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        <Card title={`FAIR VALUE ${d.asof} (ABOVE LINE = CHEAP)`}
+          note="Fitted = a + b·debt + c·TDS from today's cross-section (ex Germany). Green/red: |z cross-sec.| > 1. Click a dot for details.">
           <ResponsiveContainer width="100%" height={380}>
             <ScatterChart margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
               <XAxis type="number" dataKey="fair" name="Fitted" domain={[lo, hi]} ticks={fvTicks} {...axis}
-                label={{ value: `Fitted spread (bp) — ${d.factors.map((f) => FACTOR_LABEL[f].toLowerCase()).join(" + ")}`, position: "bottom", fill: "var(--muted)", fontSize: 10 }} />
+                label={{ value: `Fitted spread (bp) — ${factors.join(" + ")}`, position: "bottom", fill: "var(--muted)", fontSize: 10 }} />
               <YAxis type="number" dataKey="spread" name="Actual" domain={[lo, hi]} ticks={fvTicks} {...axis} width={45}
                 label={{ value: "Actual spread vs Bund (bp)", angle: -90, position: "insideLeft", fill: "var(--muted)", fontSize: 10 }} />
               <ZAxis range={[70, 70]} />
@@ -91,54 +108,23 @@ export default function EgbSection() {
           </ResponsiveContainer>
         </Card>
 
-        <Card
-          title="FAIR VALUE DECOMPOSITION (BP)"
-          note={`Each bar sums to the spread minus the cross-country average (${fmt(base, 0)} bp). Factor bar = β × the country's gap vs Germany relative to the average gap. Same β for every country.`}
-        >
+        <Card title="FAIR VALUE DECOMPOSITION (BP)"
+          note={`Actual = intercept (${fmt(fit.alpha, 1)} bp) + β·debt + β·TDS + residual.`}>
           <ResponsiveContainer width="100%" height={380}>
             <BarChart data={decomp} layout="vertical" stackOffset="sign" margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
               onClick={(e) => e?.activeLabel && setCountry(e.activeLabel)}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" horizontal={false} />
               <XAxis type="number" {...axis} />
               <YAxis type="category" dataKey="country" {...axis} width={30} />
-              <Tooltip content={<Tip digits={0} unit=" bp" />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+              <Tooltip content={<Tip digits={1} unit=" bp" />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <ReferenceLine x={0} stroke="var(--muted)" />
-              {d.factors.map((f, i) => (
+              {factors.map((f, i) => (
                 <Bar key={f} dataKey={f} name={FACTOR_LABEL[f]} stackId="a" fill={COLORS[i + 1]} />
               ))}
               <Bar dataKey="residual" name="Residual" stackId="a" fill={COLORS[0]} />
             </BarChart>
           </ResponsiveContainer>
-        </Card>
-
-        <Card title="RELATIVE VALUE MONITOR" span={2}
-          note="Residual = actual − fitted (bp, > 0 = cheap). z = residual / the country's own 3Y residual volatility. Gaps = country minus Germany, % of GDP, 12M forward. Obs = date of the latest print (carried forward max 5 business days). Click a row for details.">
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Country</th><th>10Y</th><th>Spread</th><th>Fitted</th><th>Residual</th><th>z</th><th>Signal</th>
-                  {d.factors.map((f) => <th key={f}>{FACTOR_LABEL[f]} gap</th>)}<th>Obs</th>
-                </tr>
-              </thead>
-              <tbody>
-                {snap.map((r) => (
-                  <tr key={r.country} className={r.country === country ? "selected" : ""} onClick={() => setCountry(r.country)}>
-                    <td><b>{r.country}</b> <span className="muted">{r.name}</span></td>
-                    <td>{fmt(r.yield)}</td>
-                    <td>{fmt(r.spread, 0)}</td>
-                    <td>{fmt(r.fair, 0)}</td>
-                    <td className={r.residual > 0 ? "up" : "down"}>{signed(r.residual, 0)}</td>
-                    <td className={SIGNAL_CLS[r.signal]}>{signed(r.z, 2)}</td>
-                    <td className={SIGNAL_CLS[r.signal]}>{r.signal}</td>
-                    {d.factors.map((f) => <td key={f}>{signed(r[f], f === "debt" ? 0 : 1)}</td>)}
-                    <td className="muted">{r.obs_date}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </Card>
 
         <Card
@@ -148,18 +134,18 @@ export default function EgbSection() {
             <div style={{ display: "flex", gap: 8 }}>
               <Toggle value={freq} onChange={setFreq} options={[{ id: "daily", label: "2Y DAILY" }, { id: "weekly", label: "MAX WEEKLY" }]} />
               <select className="select" value={country} onChange={(e) => setCountry(e.target.value)}>
-                {countries.map((c) => <option key={c} value={c}>{c} · {d.names[c]}</option>)}
+                {countries.map((c) => <option key={c} value={c}>{d.names[c]}</option>)}
               </select>
             </div>
           }
-          note={sel && `Latest: actual ${fmt(sel.spread, 0)} bp = average ${fmt(sel.base, 0)}${d.factors.map((f) => ` + ${FACTOR_LABEL[f].toLowerCase()} ${signed(sel[`c_${f}`], 0)}`).join("")} + residual ${signed(sel.residual, 0)}.`}
+          note={sel && `Latest: actual ${fmt(sel.spread, 1)} bp = intercept ${fmt(sel.alpha, 1)}${factors.map((f) => ` + ${f} ${signed(sel[`c_${f}`], 1)}`).join("")} + residual ${signed(sel.residual, 1)}.`}
         >
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={series} syncId="egb-country" margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
               <XAxis dataKey="date" ticks={ticks(series)} {...axis} />
               <YAxis {...axis} width={45} />
-              <Tooltip content={<Tip digits={0} unit=" bp" />} />
+              <Tooltip content={<Tip digits={1} unit=" bp" />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line dataKey="spread" name="Actual" stroke={COLORS[0]} dot={false} strokeWidth={1.8} />
               <Line dataKey="fair" name="Fitted" stroke={COLORS[1]} dot={false} strokeWidth={1.5} strokeDasharray="5 3" />
@@ -173,45 +159,64 @@ export default function EgbSection() {
               <Tooltip content={<Tip />} />
               <ReferenceLine y={1} stroke={UP} strokeDasharray="3 3" />
               <ReferenceLine y={-1} stroke={DOWN} strokeDasharray="3 3" />
-              <Bar dataKey="z" name="Residual z">
-                {series.map((r) => <Cell key={r.date} fill={r.z > 0 ? UP : DOWN} />)}
+              <Bar dataKey="z_cs" name="z cross-sec.">
+                {series.map((r) => <Cell key={r.date} fill={r.z_cs > 0 ? UP : DOWN} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </Card>
 
-        <Card title="10Y SPREAD VS BUND (BP)" span={2} note="Selected country highlighted.">
+        <Card title="10Y SPREAD VS BUND (BP)" span={2} note="Weekly. Selected country highlighted.">
           <ResponsiveContainer width="100%" height={320}>
             <LineChart data={d.spreads} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
               <XAxis dataKey="date" ticks={ticks(d.spreads)} {...axis} />
               <YAxis {...axis} width={45} />
               <Tooltip content={<Tip digits={0} />} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
               {countries.map((c, i) => (
                 <Line key={c} dataKey={c} name={c} dot={false} connectNulls
                   stroke={COLORS[i % COLORS.length]}
                   strokeWidth={c === country ? 2.5 : 1}
-                  strokeOpacity={c === country ? 1 : 0.35} />
+                  strokeOpacity={c === country ? 1 : 0.4} />
               ))}
             </LineChart>
           </ResponsiveContainer>
         </Card>
 
-        <Card title="PRICE OF FUNDAMENTALS · POOLED β (3Y ROLLING)"
-          note="One cross-country regression on a rolling 3Y window of daily data, not per country and not leave-one-out: every country shares the same β. Read as bp of spread per 1pp of GDP gap vs Germany (debt > 0 and fiscal/CA < 0 expected). Large swings = factors are collinear (few countries, slow-moving fundamentals).">
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={d.betas} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
-              <XAxis dataKey="date" ticks={ticks(d.betas, 5)} {...axis} />
+        <Card title="LEAVE-ONE-OUT (LOO)"
+          note="Each country's fair value from a regression on the other countries only. If the LOO residual keeps the sign of the full-sample residual, the signal does not depend on that country pulling the line towards itself.">
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={snap} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" vertical={false} />
+              <XAxis dataKey="country" {...axis} />
               <YAxis {...axis} width={40} />
-              <Tooltip content={<Tip />} />
+              <Tooltip content={<Tip digits={1} unit=" bp" />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <ReferenceLine y={0} stroke="var(--muted)" />
-              {d.factors.map((f, i) => (
-                <Line key={f} dataKey={f} name={FACTOR_LABEL[f]} stroke={COLORS[i + 1]} dot={false} strokeWidth={1.5} />
-              ))}
-            </LineChart>
+              <Bar dataKey="residual" name="Residual (full)" fill={COLORS[0]} />
+              <Bar dataKey="loo_residual" name="Residual (LOO)" fill={COLORS[1]} />
+            </BarChart>
           </ResponsiveContainer>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Country</th><th>Fitted</th><th>LOO fitted</th><th>LOO resid.</th>
+                {factors.map((f) => <th key={f}>LOO β {f}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {snap.map((r) => (
+                <tr key={r.country} onClick={() => setCountry(r.country)}>
+                  <td>{r.name}</td>
+                  <td>{fmt(r.fair, 1)}</td>
+                  <td>{fmt(r.loo_fair, 1)}</td>
+                  <td className={Math.sign(r.loo_residual) === Math.sign(r.residual) ? "" : "down"}>{signed(r.loo_residual, 1)}</td>
+                  {factors.map((f) => <td key={f}>{fmt(r[`loo_b_${f}`], 2)}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </Card>
 
         <Card title="BACKTEST · MEAN REVERSION (3M)"
@@ -221,7 +226,7 @@ export default function EgbSection() {
             <tbody>
               {d.mean_reversion.map((r) => (
                 <tr key={r.country}>
-                  <td><b>{r.country}</b> <span className="muted">{d.names[r.country]}</span></td>
+                  <td>{d.names[r.country]}</td>
                   <td className={r.corr < 0 ? "up" : "down"}>{signed(r.corr, 2)}</td>
                   <td className={r.hit_rate > 0.5 ? "up" : "down"}>{fmt(r.hit_rate * 100, 0)}%</td>
                   <td className="muted">{r.n}</td>
@@ -235,13 +240,12 @@ export default function EgbSection() {
       <div className="info">
         <b>Model</b>
         <p>
-          spread<sub>i,t</sub> = α<sub>t</sub> + β<sub>t</sub> · [{d.factors.map((f) => FACTOR_LABEL[f].toLowerCase()).join(", ")}]<sub>i,t</sub> + ε<sub>i,t</sub>.
-          Pooled OLS with daily fixed effects over a rolling 3Y window (756 business days) — pure cross-country relative value.
-          Fundamentals from AMECO (incl. Commission forecasts) as gaps vs Germany, blended 12M forward
-          (month m puts weight m/12 on next year). Yields: daily 10Y from Riksbank SWEA and Banca d'Italia;
-          only countries with a daily source are in the model.
+          Each day: spread<sub>i</sub> = a + b·debt<sub>i</sub> + c·TDS<sub>i</sub> + ε<sub>i</sub>, OLS across countries ex Germany.
+          Fundamentals are AMECO levels for the last full year, used from {d.lag_days} days after year-end.
+          TDS (twin deficit score) = −(budget balance + current account) / 2. Yields: daily 10Y from Riksbank SWEA,
+          Banca d'Italia and Banco de España.
         </p>
-        <p className="muted">Caveat: AMECO is the latest vintage — historical fundamentals are revised, so the backtest has look-ahead.</p>
+        <p className="muted">With N = {fit.n} countries and 3 parameters the fit has {fit.n - 3} degrees of freedom — read residuals with care. AMECO is the latest vintage, so the backtest has look-ahead.</p>
       </div>
     </div>
   );
