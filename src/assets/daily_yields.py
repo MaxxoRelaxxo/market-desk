@@ -10,15 +10,14 @@ Output: src/data/egb_daily.parquet  ->  date | country | yield | source
 
 import io
 import os
-import zipfile
 import re
 import time
+import zipfile
 from pathlib import Path
 
 import polars as pl
 import requests
 from dotenv import load_dotenv
-
 
 load_dotenv()
 
