@@ -81,3 +81,11 @@ code, pre { font-family: var(--font); }
 .table.rv .sig { font-weight: 600; }
 .table.rv .sig-cheap { background: #24552E; }
 .table.rv .sig-rich { background: #641B2B; }
+
+/* Date compare */
+.date-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+.date-bar input[type="date"] { color-scheme: dark; }
+.chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid; padding: 2px 6px; font-size: 11px; }
+.chip button { background: none; border: none; color: var(--muted); cursor: pointer; font: 12px var(--font); padding: 0 2px; }
+.chip button:hover { color: var(--text); }
+.btn:disabled { opacity: 0.4; cursor: default; }

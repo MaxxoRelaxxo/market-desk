@@ -36,3 +36,39 @@ export function useData(file) {
   }, [file]);
   return state;
 }
+
+const YEAR = 365.25 * 864e5;
+
+/** Props for a real time x-axis (rows need `t` = ms). Even year/month ticks, data-bounded domain. */
+export function timeAxis(rows, n = 8) {
+  if (!rows?.length) return {};
+  const t0 = rows[0].t;
+  const t1 = rows[rows.length - 1].t;
+  const years = (t1 - t0) / YEAR;
+  const ticks = [];
+  if (years >= 2) {
+    const step = [1, 2, 5, 10].find((s) => years / s <= n) ?? 10;
+    const y0 = new Date(t0).getUTCFullYear();
+    for (let y = Math.ceil(y0 / step) * step; ; y += step) {
+      const t = Date.UTC(y, 0, 1);
+      if (t > t1) break;
+      if (t >= t0) ticks.push(t);
+    }
+  } else {
+    const step = [1, 2, 3, 6].find((s) => (years * 12) / s <= n) ?? 6;
+    const d = new Date(t0);
+    for (let m = Math.ceil((d.getUTCMonth() + 1) / step) * step; ; m += step) {
+      const t = Date.UTC(d.getUTCFullYear(), m, 1);
+      if (t > t1) break;
+      ticks.push(t);
+    }
+  }
+  const fmtT = (t) => new Date(t).toISOString().slice(0, years >= 2 ? 4 : 7);
+  return {
+    dataKey: "t", type: "number", scale: "time", domain: [t0, t1], ticks, tickFormatter: fmtT,
+    tick: { fontSize: 10, fill: "var(--muted)" }, tickLine: false, axisLine: false,
+  };
+}
+
+export const withT = (rows) => rows.map((r) => ({ ...r, t: Date.parse(r.date) }));
+export const dateLabel = (t) => new Date(t).toISOString().slice(0, 10);

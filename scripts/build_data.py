@@ -49,32 +49,32 @@ def build_us_rates() -> None:
         .drop_nulls("value")
         .sort("series_id", "date")
     )
+    curve_ids = [*NOMINAL, *TIPS]
 
     def asof(offset: str) -> pl.DataFrame:
         cutoff = pl.col("date").max().dt.offset_by(offset)
         return df.filter(pl.col("date") <= cutoff.over("series_id")).group_by("series_id").agg(pl.col("value").last())
 
-    latest = (
-        df.group_by("series_id", maintain_order=True)
+    latest = (  # nominal + TIPS only, curve order
+        df.filter(pl.col("series_id").is_in(curve_ids))
+        .group_by("series_id")
         .agg(pl.col("date").last(), pl.col("value").last(), pl.col("value").tail(2).first().alias("prev"))
+        .join(asof("-1w").rename({"value": "w1"}), on="series_id", how="left")
         .join(asof("-1mo").rename({"value": "m1"}), on="series_id", how="left")
         .join(asof("-1y").rename({"value": "y1"}), on="series_id", how="left")
         .select(
             "series_id", pl.col("series_id").replace_strict(US_LABELS).alias("label"), "date", "value",
-            *(((pl.col("value") - pl.col(c)) * 100).alias(f"chg_{c}") for c in ["prev", "m1", "y1"]),
-            "m1", "y1",
+            *(((pl.col("value") - pl.col(c)) * 100).alias(f"chg_{c}") for c in ["prev", "w1", "m1", "y1"]),
         )
+        .sort(pl.col("series_id").replace_strict({s: i for i, s in enumerate(curve_ids)}))
     )
 
-    curve = {
-        kind: _records(
-            latest.filter(pl.col("series_id").is_in(list(tenors)))
-            .select(pl.col("series_id").replace_strict(tenors).alias("tenor"),
-                    pl.col("value").alias("now"), "m1", "y1")
-            .sort("tenor")
-        )
-        for kind, tenors in {"nominal": NOMINAL, "tips": TIPS}.items()
-    }
+    curve_history = (  # daily, wide: date | DGS2 ... DFII30
+        df.filter(pl.col("series_id").is_in(curve_ids))
+        .pivot(on="series_id", index="date", values="value")
+        .select("date", *curve_ids)
+        .sort("date")
+    )
 
     history = (  # weekly, last obs
         df.filter(pl.col("series_id").is_in(US_HISTORY))
@@ -84,8 +84,9 @@ def build_us_rates() -> None:
     )
 
     _dump({
-        "latest": _records(latest.drop("m1", "y1"), 3),
-        "curve": curve,
+        "latest": _records(latest, 3),
+        "tenors": {"nominal": NOMINAL, "tips": TIPS},
+        "curve_history": _records(curve_history, 3),
         "history": _records(history, 3),
     }, "us_rates.json")
 
@@ -128,6 +129,10 @@ def build_egb() -> None:
         "spreads": _records(spreads, 1),
         "daily": per_country(recent),                                       # last 2Y, daily
         "series": per_country(_weekly(model.select("country", *cols), "country")),  # full, weekly
+        "loo_daily": _records(recent.pivot(on="country", index="date", values="residual").sort("date"), 1),
+        "loo_weekly": _records(
+            _weekly(model.select("date", "country", "residual"), "country")
+            .pivot(on="country", index="date", values="residual").sort("date"), 1),
         "mean_reversion": _records(egb.mean_reversion(model), 2),
     }, "egb.json")
 

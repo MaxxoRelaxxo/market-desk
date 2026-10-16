@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis,
 } from "recharts";
 import { Card, Status, Tip, Toggle } from "../components/ui";
-import { COLORS, DOWN, UP, axis, fmt, signed, ticks, useData } from "../lib";
+import { COLORS, DOWN, UP, axis, dateLabel, fmt, signed, timeAxis, useData, withT } from "../lib";
 
 const FACTOR_LABEL = { debt: "Debt", tds: "TDS" };
 const SIGNAL_COLOR = { CHEAP: UP, RICH: DOWN, NEUTRAL: "#E8EDF2" };
@@ -24,18 +24,23 @@ function FairTip({ active, payload }) {
   );
 }
 
+const TimeTip = (props) => <Tip {...props} label={props.label != null ? dateLabel(props.label) : ""} />;
+
 export default function EgbSection() {
   const state = useData("egb.json");
   const [country, setCountry] = useState("FR");
   const [freq, setFreq] = useState("daily");
+  const [looFreq, setLooFreq] = useState("daily");
 
   const d = state.data;
   if (!d) return <Status state={state} what="EGB data" />;
 
   const { fit, snapshot: snap, factors } = d;
   const countries = Object.keys(d.names);
-  const series = (freq === "daily" ? d.daily : d.series)[country] ?? [];
+  const series = withT((freq === "daily" ? d.daily : d.series)[country] ?? []);
+  const spreads = withT(d.spreads);
   const sel = snap.find((r) => r.country === country);
+  const loo = withT(looFreq === "daily" ? d.loo_daily : d.loo_weekly);
   const equation = `Spread = ${fmt(fit.alpha_full, 1)} ${factors.map((f) => `${signed(fit[`b_full_${f}`], 2)}·${f}`).join(" ")}`;
 
   const all = snap.flatMap((r) => [r.fair, r.spread]);
@@ -141,22 +146,22 @@ export default function EgbSection() {
           note={sel && `Latest: actual ${fmt(sel.spread, 1)} bp = intercept ${fmt(sel.alpha, 1)}${factors.map((f) => ` + ${f} ${signed(sel[`c_${f}`], 1)}`).join("")} + residual ${signed(sel.residual, 1)}.`}
         >
           <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={series} syncId="egb-country" margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <ComposedChart data={series} syncId="egb-country" margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
-              <XAxis dataKey="date" ticks={ticks(series)} {...axis} />
+              <XAxis {...timeAxis(series)} />
               <YAxis {...axis} width={45} />
-              <Tooltip content={<Tip digits={1} unit=" bp" />} />
+              <Tooltip content={<TimeTip digits={1} unit=" bp" />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line dataKey="spread" name="Actual" stroke={COLORS[0]} dot={false} strokeWidth={1.8} />
               <Line dataKey="fair" name="Fitted" stroke={COLORS[1]} dot={false} strokeWidth={1.5} strokeDasharray="5 3" />
             </ComposedChart>
           </ResponsiveContainer>
           <ResponsiveContainer width="100%" height={140}>
-            <BarChart data={series} syncId="egb-country" margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+            <BarChart data={series} syncId="egb-country" margin={{ top: 5, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" vertical={false} />
-              <XAxis dataKey="date" ticks={ticks(series)} {...axis} />
+              <XAxis {...timeAxis(series)} />
               <YAxis {...axis} width={45} domain={[-3, 3]} allowDataOverflow />
-              <Tooltip content={<Tip />} />
+              <Tooltip content={<TimeTip />} />
               <ReferenceLine y={1} stroke={UP} strokeDasharray="3 3" />
               <ReferenceLine y={-1} stroke={DOWN} strokeDasharray="3 3" />
               <Bar dataKey="z_cs" name="z cross-sec.">
@@ -168,11 +173,11 @@ export default function EgbSection() {
 
         <Card title="10Y SPREAD VS BUND (BP)" span={2} note="Weekly. Selected country highlighted.">
           <ResponsiveContainer width="100%" height={320}>
-            <LineChart data={d.spreads} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <LineChart data={spreads} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
-              <XAxis dataKey="date" ticks={ticks(d.spreads)} {...axis} />
+              <XAxis {...timeAxis(spreads)} />
               <YAxis {...axis} width={45} />
-              <Tooltip content={<Tip digits={0} />} />
+              <Tooltip content={<TimeTip digits={0} />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {countries.map((c, i) => (
                 <Line key={c} dataKey={c} name={c} dot={false} connectNulls
@@ -184,20 +189,29 @@ export default function EgbSection() {
           </ResponsiveContainer>
         </Card>
 
-        <Card title="LEAVE-ONE-OUT VS ALL COUNTRIES"
-          note="All countries: one regression incl. the country itself (equation line above). LOO: the country is left out and priced off the rest — used for the signal. A big gap = high-leverage country that pulls the all-country line towards itself.">
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={snap} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" vertical={false} />
-              <XAxis dataKey="country" {...axis} />
-              <YAxis {...axis} width={40} />
-              <Tooltip content={<Tip digits={1} unit=" bp" />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+        <Card title="LOO RESIDUAL OVER TIME (BP)" span={2}
+          right={<Toggle value={looFreq} onChange={setLooFreq} options={[{ id: "daily", label: "2Y DAILY" }, { id: "weekly", label: "MAX WEEKLY" }]} />}
+          note="Actual − fair value from a fit on the other countries only (> 0 = cheap). Selected country highlighted.">
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={loo} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
+              <XAxis {...timeAxis(loo)} />
+              <YAxis {...axis} width={45} />
+              <Tooltip content={<TimeTip digits={1} unit=" bp" />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <ReferenceLine y={0} stroke="var(--muted)" />
-              <Bar dataKey="residual_full" name="Residual (all countries)" fill={COLORS[8]} />
-              <Bar dataKey="residual" name="Residual (LOO)" fill={COLORS[0]} />
-            </BarChart>
+              {countries.map((c, i) => (
+                <Line key={c} dataKey={c} name={d.names[c]} dot={false} connectNulls
+                  stroke={COLORS[i % COLORS.length]}
+                  strokeWidth={c === country ? 2.5 : 1.2}
+                  strokeOpacity={c === country ? 1 : 0.5} />
+              ))}
+            </LineChart>
           </ResponsiveContainer>
+        </Card>
+
+        <Card title="LOO VS ALL COUNTRIES (LATEST)"
+          note="All countries: one regression incl. the country itself (equation line above). LOO: the country is left out and priced off the rest — used for the signal. A big gap = high-leverage country that pulls the all-country line towards itself.">
           <table className="table">
             <thead>
               <tr>
