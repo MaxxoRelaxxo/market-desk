@@ -216,21 +216,31 @@ def _nbb_country(country: str, start: str) -> pl.DataFrame:
     """
     One area per call: a combined key (D.BE+AT+...) only returns BE.
 
-    SDMX-JSON 2.0: data.dataSets[0].series[...].observations["<t>"] = [value, ...],
-    t indexing data.structures[0].dimensions.observation[0].values.
+    SDMX-JSON 2.0, two layouts:
+    - series:  dataSets[0].series[...].observations["<t>"] = [value, ...]
+    - flat:    dataSets[0].observations["<d0>:<d1>:...:<t>"] = [value, ...]
+    t indexes the TIME_PERIOD values in structures[0].dimensions.observation.
     """
+    empty = pl.DataFrame(schema={"date": pl.String, "yield": pl.Float64})
     r = requests.get(f"{NBB_URL}/D.{country}", params={"startPeriod": start}, headers=NBB_HEADERS, timeout=120)
     if r.status_code == 404:
-        return pl.DataFrame(schema={"date": pl.String, "yield": pl.Float64})
+        return empty
     r.raise_for_status()
     data = r.json()["data"]
-    periods = [v["id"] for v in data["structures"][0]["dimensions"]["observation"][0]["values"]]
-    rows = [
-        (periods[int(t)], obs[0])
-        for body in data["dataSets"][0]["series"].values()
-        for t, obs in body.get("observations", {}).items()
-        if obs and obs[0] is not None
-    ]
+    ds = (data.get("dataSets") or [{}])[0]
+    obs_dims = data["structures"][0]["dimensions"]["observation"]
+    t_pos = next((i for i, d in enumerate(obs_dims) if d["id"] == "TIME_PERIOD"), len(obs_dims) - 1)
+    periods = [v["id"] for v in obs_dims[t_pos]["values"]]
+
+    if "series" in ds:
+        items = [(t, obs) for body in ds["series"].values() for t, obs in body.get("observations", {}).items()]
+    elif "observations" in ds:
+        items = [(key.split(":")[t_pos], obs) for key, obs in ds["observations"].items()]
+    else:
+        print(f"  NBB D.{country}: no data in response, dataSet keys {list(ds)}: {str(ds)[:200]}")
+        return empty
+
+    rows = [(periods[int(t)], obs[0]) for t, obs in items if obs and obs[0] is not None]
     return pl.DataFrame(rows, schema={"date": pl.String, "yield": pl.Float64}, orient="row")
 
 
