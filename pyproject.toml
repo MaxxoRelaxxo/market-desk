@@ -1,0 +1,32 @@
+[project]
+name = "market-desk"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Maksat Allaberdyev", email = "85803469+MaxxoRelaxxo@users.noreply.github.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "altair>=6.3.0",
+    "httpx>=0.28.1",
+    "ipython>=9.17.1",
+    "marimo>=0.25.1",
+    "polars>=2.0.0",
+    "pyarrow>=26.0.0",
+    "python-dotenv>=1.2.4",
+    "requests>=2.34.2",
+]
+
+[project.scripts]
+market-desk = "market_desk:main"
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.10",
+]
