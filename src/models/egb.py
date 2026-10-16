@@ -33,6 +33,7 @@ LAG_DAYS = 120  # AMECO year Y used from (Y+1)-01-01 + LAG_DAYS
 Z_WINDOW = 520  # 104 weeks of business days
 HORIZON = 63    # ~3M, backtest
 MAX_GAP = 10    # forward-fill holidays / lagging sources (Banca d'Italia snapshot) up to this many business days
+RECENT = 20     # business days: full cross-section = max country count over this window
 
 
 def factors_for(n: int) -> list[str]:
@@ -45,7 +46,7 @@ def load_spreads() -> pl.DataFrame:
     date | country | yield | obs_date | spread (bp vs Bund)
 
     Business-day grid on Bund dates; each country forward-filled up to MAX_GAP days.
-    Starts on the first date where every country has a print (stable cross-section).
+    Unbalanced: a country enters when its series starts and drops out over longer gaps.
     """
     y = pl.read_parquet(DATA_DIR / "egb_daily.parquet").select("date", "country", "yield").drop_nulls()
     if y.filter(pl.col("country") == BENCH).is_empty():
@@ -58,16 +59,13 @@ def load_spreads() -> pl.DataFrame:
         .sort("country", "date")
         .with_columns(pl.col("yield", "obs_date").forward_fill(limit=MAX_GAP).over("country"))
     )
-    n = panel["country"].n_unique()
-    start = panel.drop_nulls("yield").group_by("country").agg(pl.col("date").min())["date"].max()
     bund = panel.filter(pl.col("country") == BENCH).select("date", pl.col("yield").alias("bund"))
 
     return (
-        panel.filter(pl.col("date") >= start)
-        .join(bund, on="date")
+        panel.join(bund, on="date")
         .with_columns(((pl.col("yield") - pl.col("bund")) * 100).alias("spread"))
         .drop("bund")
-        .filter(pl.col("spread").is_not_null().sum().over("date") == n)
+        .drop_nulls("spread")
         .sort("country", "date")
     )
 
@@ -100,15 +98,18 @@ def run_model(horizon: int = HORIZON) -> tuple[pl.DataFrame, list[str]]:
     One OLS per date across countries (ex DE); X'X and X'y per date, LOO by removing own row.
     """
     s = load_spreads().filter(pl.col("country") != BENCH)
-    factors = factors_for(s["country"].n_unique())
+    counts = s.group_by("date").len().sort("date").tail(RECENT)
+    n_latest = counts["len"].max()
+    factors = factors_for(n_latest)
     reg = ["one", *factors]
     k = len(reg)
-    if s["country"].n_unique() <= k:
-        raise ValueError(f"{s['country'].n_unique()} countries ex {BENCH}: need more than {k} for {factors} + intercept")
+    if n_latest <= k + 1:
+        raise ValueError(f"{n_latest} countries ex {BENCH}: need more than {k + 1} for {factors} + intercept")
 
     p = (
         s.join(load_fundamentals(s["date"]), on=["date", "country"])
         .drop_nulls(factors)
+        .filter(pl.len().over("date") > k + 1)  # LOO needs > k observations left
         .with_columns(pl.lit(1.0).alias("one"))
         .with_columns(
             *((pl.col(a) * pl.col(b)).sum().over("date").alias(f"xx_{a}_{b}") for a in reg for b in reg),
@@ -154,9 +155,11 @@ def run_model(horizon: int = HORIZON) -> tuple[pl.DataFrame, list[str]]:
 
 
 def snapshot(model: pl.DataFrame, factors: list[str]) -> pl.DataFrame:
-    """Latest date, ranked cheap -> rich by residual."""
+    """Latest date with the full recent cross-section (a lagging source can drop a country on the last days)."""
+    counts = model.group_by("date").len().sort("date").tail(RECENT)
+    date = counts.filter(pl.col("len") == pl.col("len").max())["date"].max()
     return (
-        model.filter(pl.col("date") == pl.col("date").max())
+        model.filter(pl.col("date") == date)
         .with_columns(
             pl.when(pl.col("z_cs") > 1).then(pl.lit("CHEAP"))
             .when(pl.col("z_cs") < -1).then(pl.lit("RICH"))

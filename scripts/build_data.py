@@ -119,7 +119,7 @@ def build_egb() -> None:
     )
 
     _dump({
-        "asof": model["date"].max(),
+        "asof": snap["date"].max(),
         "factors": factors,
         "all_factors": egb.ALL_FACTORS,
         "min_n_two_factors": egb.MIN_N_TWO_FACTORS,

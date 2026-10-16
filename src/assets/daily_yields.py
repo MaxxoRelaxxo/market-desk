@@ -5,6 +5,8 @@ Daily 10Y euro government bond yields.
   Euro 10Y series available in SWEA: DE, FI, FR, NL.
 - Banca d'Italia: BTP 10Y benchmark (cube BMK0200).
 - Banco de España: 10Y Bono (D_G0B1F0ZP), listaSeries API, one calendar year per call.
+- National Bank of Belgium: long-term yield of the reference loans, 11am (BE2,DF_IROLOYLD),
+  SDMX-JSON from the NSI web service, for BE, AT, GR, IE, PT.
 
 Output: src/data/egb_daily.parquet  ->  date | country | yield | source
 """
@@ -32,6 +34,15 @@ BDI_URL = (
 BDI_SERIES = "MFN_BMK.D.020.922.0.EUR.210"
 BDE_URL = "https://app.bde.es/bierest/resources/srdatosapp/listaSeries"
 BDE_SERIES = "D_G0B1F0ZP"
+NBB_URL = "https://nsidisseminate-stat.nbb.be/rest/data/BE2,DF_IROLOYLD,1.0"
+NBB_COUNTRIES = ["BE", "AT", "GR", "IE", "PT"]
+NBB_HEADERS = {  # the NBB WAF rejects non-browser requests
+    "Accept": "application/vnd.sdmx.data+json",
+    "Accept-Language": "en",
+    "Origin": "https://dataexplorer.nbb.be",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+}
 
 ISO2 = {
     "Austria": "AT", "Belgium": "BE", "Finland": "FI", "France": "FR", "Germany": "DE",
@@ -198,6 +209,42 @@ def fetch_bde(series: str = BDE_SERIES, start_year: int = 2000) -> pl.DataFrame:
 
 
 # ============================================================
+# NATIONAL BANK OF BELGIUM
+# ============================================================
+
+def fetch_nbb(countries: list[str] = NBB_COUNTRIES, start: str = "2000-01-01") -> pl.DataFrame:
+    """
+    SDMX-JSON 2.0: data.dataSets[0].series["<freq>:<area>"].observations["<t>"] = [value, ...],
+    with positions resolved through data.structures[0].dimensions.{series, observation}.
+    """
+    r = requests.get(f"{NBB_URL}/D.{'+'.join(countries)}", params={"startPeriod": start},
+                     headers=NBB_HEADERS, timeout=120)
+    r.raise_for_status()
+    data = r.json()["data"]
+    dims = data["structures"][0]["dimensions"]
+    series_dims = sorted(dims["series"], key=lambda d: d.get("keyPosition", 0))
+    area_pos = next(i for i, d in enumerate(series_dims) if d["id"].endswith("AREA"))
+    areas = [v["id"] for v in series_dims[area_pos]["values"]]
+    periods = [v["id"] for v in dims["observation"][0]["values"]]
+
+    rows = [
+        (periods[int(t)], areas[int(key.split(":")[area_pos])], obs[0])
+        for key, body in data["dataSets"][0]["series"].items()
+        for t, obs in body.get("observations", {}).items()
+        if obs and obs[0] is not None
+    ]
+    df = pl.DataFrame(rows, schema={"date": pl.String, "country": pl.String, "yield": pl.Float64}, orient="row")
+    for c, g in df.group_by("country"):
+        print(f"  NBB D.{c[0]}: {g.height} rows")
+    return df.select(
+        pl.col("date").str.slice(0, 10).str.to_date(),
+        "country",
+        "yield",
+        pl.concat_str(pl.lit("NBB DF_IROLOYLD D."), pl.col("country")).alias("source"),
+    )
+
+
+# ============================================================
 # SAVE
 # ============================================================
 
@@ -208,6 +255,7 @@ def save_daily_parquet(start: str = "2000-01-01") -> Path:
         ("Riksbank", lambda: fetch_swea(start)),
         ("Banca d'Italia", fetch_bdi),
         ("Banco de España", lambda: fetch_bde(start_year=int(start[:4]))),
+        ("NBB", lambda: fetch_nbb(start=start)),
     ]
     for name, fetch in sources:
         try:
