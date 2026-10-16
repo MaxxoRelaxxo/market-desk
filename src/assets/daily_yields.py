@@ -6,7 +6,7 @@ Daily 10Y euro government bond yields.
 - Banca d'Italia: BTP 10Y benchmark (cube BMK0200).
 - Banco de España: 10Y Bono (D_G0B1F0ZP), listaSeries API, one calendar year per call.
 - National Bank of Belgium: long-term yield of the reference loans, 11am (BE2,DF_IROLOYLD),
-  SDMX-JSON from the NSI web service, for BE, AT, GR, IE, PT.
+  SDMX-JSON from the NSI web service, for BE, AT, GR, IE, PT (one request per country).
 
 Output: src/data/egb_daily.parquet  ->  date | country | yield | source
 """
@@ -212,36 +212,44 @@ def fetch_bde(series: str = BDE_SERIES, start_year: int = 2000) -> pl.DataFrame:
 # NATIONAL BANK OF BELGIUM
 # ============================================================
 
-def fetch_nbb(countries: list[str] = NBB_COUNTRIES, start: str = "2000-01-01") -> pl.DataFrame:
+def _nbb_country(country: str, start: str) -> pl.DataFrame:
     """
-    SDMX-JSON 2.0: data.dataSets[0].series["<freq>:<area>"].observations["<t>"] = [value, ...],
-    with positions resolved through data.structures[0].dimensions.{series, observation}.
+    One area per call: a combined key (D.BE+AT+...) only returns BE.
+
+    SDMX-JSON 2.0: data.dataSets[0].series[...].observations["<t>"] = [value, ...],
+    t indexing data.structures[0].dimensions.observation[0].values.
     """
-    r = requests.get(f"{NBB_URL}/D.{'+'.join(countries)}", params={"startPeriod": start},
-                     headers=NBB_HEADERS, timeout=120)
+    r = requests.get(f"{NBB_URL}/D.{country}", params={"startPeriod": start}, headers=NBB_HEADERS, timeout=120)
+    if r.status_code == 404:
+        return pl.DataFrame(schema={"date": pl.String, "yield": pl.Float64})
     r.raise_for_status()
     data = r.json()["data"]
-    dims = data["structures"][0]["dimensions"]
-    series_dims = sorted(dims["series"], key=lambda d: d.get("keyPosition", 0))
-    area_pos = next(i for i, d in enumerate(series_dims) if d["id"].endswith("AREA"))
-    areas = [v["id"] for v in series_dims[area_pos]["values"]]
-    periods = [v["id"] for v in dims["observation"][0]["values"]]
-
+    periods = [v["id"] for v in data["structures"][0]["dimensions"]["observation"][0]["values"]]
     rows = [
-        (periods[int(t)], areas[int(key.split(":")[area_pos])], obs[0])
-        for key, body in data["dataSets"][0]["series"].items()
+        (periods[int(t)], obs[0])
+        for body in data["dataSets"][0]["series"].values()
         for t, obs in body.get("observations", {}).items()
         if obs and obs[0] is not None
     ]
-    df = pl.DataFrame(rows, schema={"date": pl.String, "country": pl.String, "yield": pl.Float64}, orient="row")
-    for c, g in df.group_by("country"):
-        print(f"  NBB D.{c[0]}: {g.height} rows")
-    return df.select(
-        pl.col("date").str.slice(0, 10).str.to_date(),
-        "country",
-        "yield",
-        pl.concat_str(pl.lit("NBB DF_IROLOYLD D."), pl.col("country")).alias("source"),
-    )
+    return pl.DataFrame(rows, schema={"date": pl.String, "yield": pl.Float64}, orient="row")
+
+
+def fetch_nbb(countries: list[str] = NBB_COUNTRIES, start: str = "2000-01-01") -> pl.DataFrame:
+    frames = []
+    for c in countries:
+        try:
+            df = _nbb_country(c, start)
+        except Exception as e:  # noqa: BLE001
+            print(f"  NBB D.{c}: failed ({e})")
+            continue
+        print(f"  NBB D.{c}: {df.height} rows")
+        frames.append(df.select(
+            pl.col("date").str.slice(0, 10).str.to_date(),
+            pl.lit(c).alias("country"),
+            "yield",
+            pl.lit(f"NBB DF_IROLOYLD D.{c}").alias("source"),
+        ))
+    return pl.concat(frames) if frames else pl.DataFrame(schema=SCHEMA)
 
 
 # ============================================================
