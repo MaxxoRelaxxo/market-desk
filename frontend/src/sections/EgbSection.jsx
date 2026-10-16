@@ -3,7 +3,7 @@ import {
   Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, LineChart, ReferenceLine,
   ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis,
 } from "recharts";
-import { Card, StatCard, Status, Tip } from "../components/ui";
+import { Card, StatCard, Status, Tip, Toggle } from "../components/ui";
 import { COLORS, DOWN, UP, axis, fmt, signed, ticks, useData } from "../lib";
 
 const FACTOR_LABEL = { debt: "Debt", fiscal: "Fiscal balance", ca: "Current account" };
@@ -27,16 +27,18 @@ function FairTip({ active, payload }) {
 export default function EgbSection() {
   const state = useData("egb.json");
   const [country, setCountry] = useState("IT");
+  const [freq, setFreq] = useState("daily");
 
   const d = state.data;
   if (!d) return <Status state={state} what="EGB data" />;
 
-  const series = d.series[country] ?? [];
+  const hasDaily = Object.keys(d.daily ?? {}).length > 0;
+  const series = (hasDaily && freq === "daily" ? d.daily : d.series)[country] ?? [];
   const bund = d.bund;
   const bundLast = bund[bund.length - 1];
   const bundPrev = bund[bund.length - 2];
   const snap = d.snapshot;
-  const snapDate = snap[0]?.date;
+  const snapDate = d.frequency === "daily" ? snap[0]?.date : snap[0]?.date.slice(0, 7);
   const base = snap[0]?.base;
   const ranked = snap.filter((r) => r.z != null);
   const cheap = ranked[0];
@@ -60,7 +62,7 @@ export default function EgbSection() {
     <div>
       <div className="section-head">
         <h2>EGB SPREADS <span className="muted">| Fair value vs fundamentals</span></h2>
-        <div className="muted">10Y spread vs Bund · model date {snapDate?.slice(0, 7)}</div>
+        <div className="muted">10Y spread vs Bund · {d.frequency} · as of {snapDate}</div>
       </div>
 
       <div className="stats">
@@ -74,7 +76,7 @@ export default function EgbSection() {
 
       <div className="grid">
         <Card
-          title={`FAIR VALUE ${snapDate?.slice(0, 7)} (ABOVE LINE = CHEAP)`}
+          title={`FAIR VALUE ${snapDate} (ABOVE LINE = CHEAP)`}
           note="Fitted spread = cross-country average + β · (country gap vs Germany − average gap). Green/red: |z| > 1. Click a dot for details."
         >
           <ResponsiveContainer width="100%" height={380}>
@@ -114,13 +116,13 @@ export default function EgbSection() {
         </Card>
 
         <Card title="RELATIVE VALUE MONITOR" span={2}
-          note="Residual = actual − fitted (bp, > 0 = cheap). z = residual / the country's own 36M residual volatility. Gaps = country minus Germany, % of GDP, 12M forward. Click a row for details.">
+          note="Residual = actual − fitted (bp, > 0 = cheap). z = residual / the country's own 36M residual volatility. Gaps = country minus Germany, % of GDP, 12M forward. Src: D = daily, M = latest FRED monthly (carried forward). Click a row for details.">
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
                   <th>Country</th><th>10Y</th><th>Spread</th><th>Fitted</th><th>Residual</th><th>z</th><th>Signal</th>
-                  <th>Debt gap</th><th>Fiscal gap</th><th>CA gap</th>
+                  <th>Debt gap</th><th>Fiscal gap</th><th>CA gap</th><th>Src</th><th>Obs</th>
                 </tr>
               </thead>
               <tbody>
@@ -136,6 +138,8 @@ export default function EgbSection() {
                     <td>{signed(r.debt, 0)}</td>
                     <td>{signed(r.fiscal, 1)}</td>
                     <td>{signed(r.ca, 1)}</td>
+                    <td title={r.source} className={r.source?.startsWith("FRED") ? "muted" : ""}>{r.source?.startsWith("FRED") ? "M" : "D"}</td>
+                    <td className="muted">{r.obs_date}</td>
                   </tr>
                 ))}
               </tbody>
@@ -147,9 +151,14 @@ export default function EgbSection() {
           title={`${d.names[country]?.toUpperCase()} · ACTUAL VS FITTED`}
           span={2}
           right={
-            <select className="select" value={country} onChange={(e) => setCountry(e.target.value)}>
-              {countries.map((c) => <option key={c} value={c}>{c} · {d.names[c]}</option>)}
-            </select>
+            <div style={{ display: "flex", gap: 8 }}>
+              {hasDaily && (
+                <Toggle value={freq} onChange={setFreq} options={[{ id: "daily", label: "DAILY 2Y" }, { id: "monthly", label: "MONTHLY" }]} />
+              )}
+              <select className="select" value={country} onChange={(e) => setCountry(e.target.value)}>
+                {countries.map((c) => <option key={c} value={c}>{c} · {d.names[c]}</option>)}
+              </select>
+            </div>
           }
           note={sel && `Latest: actual ${fmt(sel.spread, 0)} bp = average ${fmt(sel.base, 0)} + debt ${signed(sel.c_debt, 0)} + fiscal ${signed(sel.c_fiscal, 0)} + CA ${signed(sel.c_ca, 0)} + residual ${signed(sel.residual, 0)}.`}
         >
@@ -237,7 +246,9 @@ export default function EgbSection() {
           spread<sub>i,t</sub> = α<sub>t</sub> + β<sub>t</sub> · [debt, fiscal balance, current account]<sub>i,t</sub> + ε<sub>i,t</sub>.
           Pooled OLS with month fixed effects over a rolling 36M window — pure cross-country relative value.
           Fundamentals from AMECO (incl. Commission forecasts) as gaps vs Germany, blended 12M forward
-          (month m puts weight m/12 on next year). Yields: FRED/OECD monthly 10Y averages.
+          (month m puts weight m/12 on next year). Estimation on FRED/OECD monthly 10Y averages; the live snapshot
+          applies the latest β and residual vol to daily yields (Riksbank SWEA, Banca d'Italia), falling back to the latest
+          monthly spread for countries without a daily source.
         </p>
         <p className="muted">Caveat: AMECO is the latest vintage — historical fundamentals are revised, so the backtest has look-ahead.</p>
       </div>

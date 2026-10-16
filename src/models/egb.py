@@ -3,7 +3,8 @@ EGB spread fair-value model.
 
 spread_it (bp vs Bund) = FE_t + b_t · [debt, fiscal, ca]_it (relative to DE) + e_it
 
-- Yields: FRED 10Y (monthly), fundamentals: AMECO (annual, % GDP).
+- Yields: FRED 10Y (monthly) for estimation; daily (Riksbank / Banca d'Italia) for the live snapshot.
+- Fundamentals: AMECO (annual, % GDP).
 - Fundamentals are 12M-forward: month m blends year t and t+1 with weight m/12.
 - Betas from a rolling pooled OLS with month fixed effects (cross-sectional RV).
 - Residual > 0 -> cheap vs fundamentals, < 0 -> rich. z = residual / own rolling residual vol.
@@ -105,26 +106,90 @@ def run_model(window: int = 36, z_window: int = 36, horizon: int = 3) -> tuple[p
     roll = dict(window_size=z_window, min_samples=12)
 
     model = (
-        panel.join(betas, on="date")
-        .with_columns(
-            pl.col("spread").mean().over("date").alias("base"),
-            *(((pl.col(f) - pl.col(f).mean().over("date")) * pl.col(f"b_{f}")).alias(f"c_{f}") for f in FACTORS),
-        )
-        .with_columns((pl.col("base") + pl.sum_horizontal(f"c_{f}" for f in FACTORS)).alias("fair"))
-        .with_columns((pl.col("spread") - pl.col("fair")).alias("residual"))
+        _price(panel.join(betas, on="date"))
         .sort("country", "date")
         .with_columns(
-            # sign matches the residual (above/below fair), scaled by the country's own residual vol
-            (pl.col("residual") / pl.col("residual").rolling_std(**roll)).over("country").alias("z"),
+            # z: sign matches the residual (above/below fair), scaled by the country's own residual vol
+            pl.col("residual").rolling_std(**roll).over("country").alias("res_vol"),
             (pl.col("spread").shift(-horizon) - pl.col("spread")).over("country").alias("fwd_chg"),
         )
+        .with_columns((pl.col("residual") / pl.col("res_vol")).alias("z"))
         .drop(f"b_{f}" for f in FACTORS)
     )
     return model, betas
 
 
+def _price(panel: pl.DataFrame) -> pl.DataFrame:
+    """base + beta contributions -> fair, residual. Needs spread, factors, b_*."""
+    return (
+        panel.with_columns(
+            pl.col("spread").mean().over("date").alias("base"),
+            *(((pl.col(f) - pl.col(f).mean().over("date")) * pl.col(f"b_{f}")).alias(f"c_{f}") for f in FACTORS),
+        )
+        .with_columns((pl.col("base") + pl.sum_horizontal(f"c_{f}" for f in FACTORS)).alias("fair"))
+        .with_columns((pl.col("spread") - pl.col("fair")).alias("residual"))
+    )
+
+
+def run_daily(model: pl.DataFrame, betas: pl.DataFrame, lookback: str = "2y", stale_days: int = 7) -> pl.DataFrame | None:
+    """
+    Daily fair value: latest monthly betas and residual vol applied to daily spreads.
+
+    Countries without a daily yield (within stale_days) fall back to the latest monthly
+    FRED spread, flagged in `source`. Returns None if no daily Bund is available.
+    """
+    path = DATA_DIR / "egb_daily.parquet"
+    if not path.exists():
+        return None
+    daily = pl.read_parquet(path).sort("date")
+    bund = daily.filter(pl.col("country") == BENCH).select("date", pl.col("yield").alias("bund"))
+    if bund.is_empty():
+        return None
+
+    end = bund["date"].max()
+    grid = (
+        bund.filter(pl.col("date") >= pl.lit(end).dt.offset_by(f"-{lookback}"))
+        .join(model.select(pl.col("country").unique()), how="cross")
+        .sort("date")
+    )
+    monthly = model.select(
+        "country", pl.col("date").alias("m_date"), pl.col("yield").alias("m_yield"),
+        pl.col("spread").alias("m_spread"), "res_vol",
+    ).sort("m_date")
+    obs = daily.select("country", pl.col("date").alias("d_date"), pl.col("yield").alias("d_yield"), "source")
+
+    panel = (
+        grid.join_asof(obs, left_on="date", right_on="d_date", by="country", check_sortedness=False,
+                       strategy="backward", tolerance=f"{stale_days}d")
+        .join_asof(monthly, left_on="date", right_on="m_date", by="country", strategy="backward", check_sortedness=False)
+        .with_columns(
+            pl.coalesce("d_yield", "m_yield").alias("yield"),
+            pl.when(pl.col("d_yield").is_not_null())
+            .then((pl.col("d_yield") - pl.col("bund")) * 100)
+            .otherwise(pl.col("m_spread")).alias("spread"),
+            pl.coalesce("d_date", "m_date").alias("obs_date"),
+            pl.when(pl.col("d_yield").is_not_null()).then(pl.col("source"))
+            .otherwise(pl.lit("FRED monthly")).alias("source"),
+        )
+        .drop_nulls(["spread", "res_vol"])
+    )
+    panel = (
+        panel.join(load_fundamentals(panel["date"]), on=["date", "country"])
+        .join_asof(betas.sort("date"), on="date", strategy="backward")
+    )
+    return (
+        _price(panel)
+        .with_columns((pl.col("residual") / pl.col("res_vol")).alias("z"))
+        .select("date", "country", "yield", "spread", *FACTORS, "base", *(f"c_{f}" for f in FACTORS),
+                "fair", "residual", "res_vol", "z", "obs_date", "source")
+        .sort("country", "date")
+    )
+
+
 def snapshot(model: pl.DataFrame) -> pl.DataFrame:
     """Latest date with all countries observed, ranked cheap -> rich."""
+    if "source" not in model.columns:  # monthly model
+        model = model.with_columns(pl.col("date").alias("obs_date"), pl.lit("FRED monthly").alias("source"))
     n = model["country"].n_unique()
     full = model.group_by("date").len().filter(pl.col("len") == n)["date"].max()
     return (
@@ -135,7 +200,7 @@ def snapshot(model: pl.DataFrame) -> pl.DataFrame:
             .otherwise(pl.lit("FAIR")).alias("signal")
         )
         .select("country", "date", "yield", "spread", "fair", "residual", "z", "signal",
-                *FACTORS, "base", *(f"c_{f}" for f in FACTORS))
+                *FACTORS, "base", *(f"c_{f}" for f in FACTORS), "obs_date", "source")
         .sort("z", descending=True, nulls_last=True)
     )
 

@@ -18,6 +18,7 @@ Same structure as markets-data-hub: Python/Polars â†’ `scripts/build_data.py` â†
 ```bash
 PYTHONPATH=src uv run python -c "from assets.fred import save_fred_parquet; save_fred_parquet()"
 PYTHONPATH=src uv run python -c "from assets.ameco import save_ameco_parquet; save_ameco_parquet()"
+PYTHONPATH=src uv run python -c "from assets.daily_yields import save_daily_parquet; print(save_daily_parquet())"
 uv run python scripts/build_data.py          # all themes, or e.g. `... build_data.py egb`
 cd frontend && npm install && npm run dev
 ```
