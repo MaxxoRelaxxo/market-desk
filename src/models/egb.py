@@ -7,8 +7,8 @@ spread_i (bp vs Bund) = a + b · debt_i + c · tds_i + e_i      per date, countr
 - Fundamentals: AMECO levels (% GDP) of the last full year, published with LAG_DAYS lag:
   on date t use year (t - LAG_DAYS).year - 1.
 - TDS (twin deficit score) = -(budget balance + current account) / 2; > 0 = deficits.
-- z cross-sec = residual / regression sigma that day. z 104w = residual vs own 104-week history.
-- LOO: each country's fair value from a fit on the other countries only (out-of-sample check).
+- Fair value is leave-one-out: each country priced off a fit on the other countries only.
+- z cross-sec = LOO residual / sqrt(PRESS / n) that day. z 104w = residual vs own 104-week history.
 """
 
 from pathlib import Path
@@ -85,10 +85,13 @@ def _solve(xx: np.ndarray, xy: np.ndarray) -> np.ndarray:
 def run_model(horizon: int = HORIZON) -> pl.DataFrame:
     """
     date | country | yield | obs_date | spread | debt | fiscal | ca | tds
-    | alpha | b_debt | b_tds | fair | residual | sigma | r2 | n | z_cs | z_ts
-    | loo_fair | loo_residual | loo_b_debt | loo_b_tds | fwd_chg
+    | alpha | b_debt | b_tds | fair | residual | sigma_loo | z_cs | z_ts          <- LOO (primary)
+    | alpha_full | b_full_debt | b_full_tds | fair_full | residual_full | sigma | r2 | n   <- all countries
+    | fwd_chg
 
     One OLS per date across countries (ex DE); X'X and X'y per date, LOO by removing own row.
+    Primary fair value is LOO: with few countries a high-leverage country (e.g. FR: highest TDS)
+    pulls the in-sample line towards itself and hides its own mispricing.
     """
     s = load_spreads()
     p = (
@@ -108,33 +111,36 @@ def run_model(horizon: int = HORIZON) -> pl.DataFrame:
     X, y = p[REG].to_numpy(), p["spread"].to_numpy()
     xx = p[[f"xx_{a}_{b}" for a in REG for b in REG]].to_numpy()
     xy = p[[f"xy_{a}" for a in REG]].to_numpy()
-    beta = _solve(xx, xy)
-    beta_loo = _solve(xx - np.einsum("ni,nj->nij", X, X).reshape(len(X), -1), xy - X * y[:, None])
+    beta_full = _solve(xx, xy)
+    beta = _solve(xx - np.einsum("ni,nj->nij", X, X).reshape(len(X), -1), xy - X * y[:, None])
 
+    roll = dict(window_size=Z_WINDOW, min_samples=250)
     model = (
         p.select("date", "country", "yield", "obs_date", "spread", *SHOWN)
         .with_columns(
             pl.Series("alpha", beta[:, 0]),
             *(pl.Series(f"b_{f}", beta[:, i + 1]) for i, f in enumerate(FACTORS)),
             pl.Series("fair", (X * beta).sum(1)),
-            pl.Series("loo_fair", (X * beta_loo).sum(1)),
-            *(pl.Series(f"loo_b_{f}", beta_loo[:, i + 1]) for i, f in enumerate(FACTORS)),
+            pl.Series("alpha_full", beta_full[:, 0]),
+            *(pl.Series(f"b_full_{f}", beta_full[:, i + 1]) for i, f in enumerate(FACTORS)),
+            pl.Series("fair_full", (X * beta_full).sum(1)),
         )
         .with_columns(
             (pl.col("spread") - pl.col("fair")).alias("residual"),
-            (pl.col("spread") - pl.col("loo_fair")).alias("loo_residual"),
+            (pl.col("spread") - pl.col("fair_full")).alias("residual_full"),
             pl.len().over("date").alias("n"),
         )
         .with_columns(
-            ((pl.col("residual") ** 2).sum().over("date") / (pl.col("n") - k)).sqrt().alias("sigma"),
-            (1 - (pl.col("residual") ** 2).sum().over("date")
+            (pl.col("residual") ** 2).mean().over("date").sqrt().alias("sigma_loo"),  # sqrt(PRESS / n)
+            ((pl.col("residual_full") ** 2).sum().over("date") / (pl.col("n") - k)).sqrt().alias("sigma"),
+            (1 - (pl.col("residual_full") ** 2).sum().over("date")
              / ((pl.col("spread") - pl.col("spread").mean().over("date")) ** 2).sum().over("date")).alias("r2"),
         )
         .sort("country", "date")
         .with_columns(
-            (pl.col("residual") / pl.col("sigma")).alias("z_cs"),
-            ((pl.col("residual") - pl.col("residual").rolling_mean(Z_WINDOW, min_samples=250))
-             / pl.col("residual").rolling_std(Z_WINDOW, min_samples=250)).over("country").alias("z_ts"),
+            (pl.col("residual") / pl.col("sigma_loo")).alias("z_cs"),
+            ((pl.col("residual") - pl.col("residual").rolling_mean(**roll))
+             / pl.col("residual").rolling_std(**roll)).over("country").alias("z_ts"),
             (pl.col("spread").shift(-horizon) - pl.col("spread")).over("country").alias("fwd_chg"),
         )
     )

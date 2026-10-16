@@ -36,7 +36,7 @@ export default function EgbSection() {
   const countries = Object.keys(d.names);
   const series = (freq === "daily" ? d.daily : d.series)[country] ?? [];
   const sel = snap.find((r) => r.country === country);
-  const equation = `Spread = ${fmt(fit.alpha, 1)} ${factors.map((f) => `${signed(fit[`b_${f}`], 2)}·${f}`).join(" ")}`;
+  const equation = `Spread = ${fmt(fit.alpha_full, 1)} ${factors.map((f) => `${signed(fit[`b_full_${f}`], 2)}·${f}`).join(" ")}`;
 
   const all = snap.flatMap((r) => [r.fair, r.spread]);
   const lo = Math.floor(Math.min(0, ...all) / 20) * 20;
@@ -61,7 +61,7 @@ export default function EgbSection() {
 
       <div className="grid">
         <Card title="RELATIVE VALUE MONITOR" span={2}
-          note="Debt, budget, current account: % of GDP, last full year (AMECO) with publication lag. TDS = −(budget + current account) / 2. Residual = actual − fitted (bp, > 0 = cheap). z cross-sec. = residual / regression σ; signal at |z| > 1. z 104w = residual vs its own 104-week history. Click a row for details.">
+          note="Debt, budget, current account: % of GDP, last full year (AMECO) with publication lag. TDS = −(budget + current account) / 2. Fitted = leave-one-out: each country priced off a fit on the other countries only. Residual = actual − fitted (bp, > 0 = cheap). z cross-sec. = residual / √(mean squared LOO residual); signal at |z| > 1. z 104w = residual vs its own 104-week history. Click a row for details.">
           <div className="table-wrap">
             <table className="table rv">
               <thead>
@@ -92,7 +92,7 @@ export default function EgbSection() {
         </Card>
 
         <Card title={`FAIR VALUE ${d.asof} (ABOVE LINE = CHEAP)`}
-          note="Fitted = a + b·debt + c·TDS from today's cross-section (ex Germany). Green/red: |z cross-sec.| > 1. Click a dot for details.">
+          note="Fitted = a + b·debt + c·TDS fitted on the other countries (leave-one-out, ex Germany). Green/red: |z cross-sec.| > 1. Click a dot for details.">
           <ResponsiveContainer width="100%" height={380}>
             <ScatterChart margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
@@ -109,7 +109,7 @@ export default function EgbSection() {
         </Card>
 
         <Card title="FAIR VALUE DECOMPOSITION (BP)"
-          note={`Actual = intercept (${fmt(fit.alpha, 1)} bp) + β·debt + β·TDS + residual.`}>
+          note="Actual = intercept + β·debt + β·TDS + residual, with each country's own LOO coefficients.">
           <ResponsiveContainer width="100%" height={380}>
             <BarChart data={decomp} layout="vertical" stackOffset="sign" margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
               onClick={(e) => e?.activeLabel && setCountry(e.activeLabel)}>
@@ -184,8 +184,8 @@ export default function EgbSection() {
           </ResponsiveContainer>
         </Card>
 
-        <Card title="LEAVE-ONE-OUT (LOO)"
-          note="Each country's fair value from a regression on the other countries only. If the LOO residual keeps the sign of the full-sample residual, the signal does not depend on that country pulling the line towards itself.">
+        <Card title="LEAVE-ONE-OUT VS ALL COUNTRIES"
+          note="All countries: one regression incl. the country itself (equation line above). LOO: the country is left out and priced off the rest — used for the signal. A big gap = high-leverage country that pulls the all-country line towards itself.">
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={snap} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" vertical={false} />
@@ -194,14 +194,14 @@ export default function EgbSection() {
               <Tooltip content={<Tip digits={1} unit=" bp" />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <ReferenceLine y={0} stroke="var(--muted)" />
-              <Bar dataKey="residual" name="Residual (full)" fill={COLORS[0]} />
-              <Bar dataKey="loo_residual" name="Residual (LOO)" fill={COLORS[1]} />
+              <Bar dataKey="residual_full" name="Residual (all countries)" fill={COLORS[8]} />
+              <Bar dataKey="residual" name="Residual (LOO)" fill={COLORS[0]} />
             </BarChart>
           </ResponsiveContainer>
           <table className="table">
             <thead>
               <tr>
-                <th>Country</th><th>Fitted</th><th>LOO fitted</th><th>LOO resid.</th>
+                <th>Country</th><th>Fitted (all)</th><th>Resid. (all)</th><th>Fitted (LOO)</th><th>Resid. (LOO)</th>
                 {factors.map((f) => <th key={f}>LOO β {f}</th>)}
               </tr>
             </thead>
@@ -209,10 +209,11 @@ export default function EgbSection() {
               {snap.map((r) => (
                 <tr key={r.country} onClick={() => setCountry(r.country)}>
                   <td>{r.name}</td>
+                  <td>{fmt(r.fair_full, 1)}</td>
+                  <td>{signed(r.residual_full, 1)}</td>
                   <td>{fmt(r.fair, 1)}</td>
-                  <td>{fmt(r.loo_fair, 1)}</td>
-                  <td className={Math.sign(r.loo_residual) === Math.sign(r.residual) ? "" : "down"}>{signed(r.loo_residual, 1)}</td>
-                  {factors.map((f) => <td key={f}>{fmt(r[`loo_b_${f}`], 2)}</td>)}
+                  <td className={r.residual > 0 ? "up" : "down"}>{signed(r.residual, 1)}</td>
+                  {factors.map((f) => <td key={f}>{fmt(r[`b_${f}`], 2)}</td>)}
                 </tr>
               ))}
             </tbody>
@@ -241,6 +242,7 @@ export default function EgbSection() {
         <b>Model</b>
         <p>
           Each day: spread<sub>i</sub> = a + b·debt<sub>i</sub> + c·TDS<sub>i</sub> + ε<sub>i</sub>, OLS across countries ex Germany.
+          Fair value is leave-one-out: each country is priced off the regression on the other countries.
           Fundamentals are AMECO levels for the last full year, used from {d.lag_days} days after year-end.
           TDS (twin deficit score) = −(budget balance + current account) / 2. Yields: daily 10Y from Riksbank SWEA,
           Banca d'Italia and Banco de España.

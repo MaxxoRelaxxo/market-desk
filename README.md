@@ -35,7 +35,8 @@ Add a theme: one `build_<theme>()` in `scripts/build_data.py` + one component in
   ES (Bono 10Y) from Banco de España (`D_G0B1F0ZP`).
 - Fundamentals: AMECO levels (% GDP) of the last full year, used from 120 days after year-end (`LAG_DAYS`).
   TDS (twin deficit score) = −(budget balance + current account) / 2.
-- Residual > 0 = cheap (above the 45° line). z cross-sec. = residual / regression σ (signal at |z| > 1);
-  z 104w = residual vs its own 104-week history.
-- LOO: each country's fair value from a fit on the other countries only.
+- Fair value is leave-one-out: each country priced off a fit on the other countries only. With few countries a
+  high-leverage country (e.g. France, highest TDS) otherwise pulls the line towards itself and hides its mispricing.
+- Residual > 0 = cheap (above the 45° line). z cross-sec. = LOO residual / √(PRESS/n) (signal at |z| > 1);
+  z 104w = residual vs its own 104-week history. The all-country fit is shown in the header and LOO panel.
 - Caveat: AMECO is the latest vintage, so the backtest has look-ahead.
