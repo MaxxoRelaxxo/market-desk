@@ -1,7 +1,7 @@
 """
 EGB spread fair-value model (daily).
 
-spread_it (bp vs Bund) = FE_t + b_t · [debt, fiscal, ca]_it (relative to DE) + e_it
+spread_it (bp vs Bund) = FE_t + b_t · [FACTORS]_it (relative to DE) + e_it
 
 - Yields: daily 10Y (src/data/egb_daily.parquet: Riksbank SWEA, Banca d'Italia).
 - Fundamentals: AMECO (annual, % GDP), 12M-forward: month m blends year t and t+1 with weight m/12.
@@ -20,7 +20,9 @@ from assets.daily_yields import ISO2
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 BENCH = "DE"
-FACTORS = ["debt", "fiscal", "ca"]
+# 5 countries (DE, FI, FR, NL, IT) -> 4 demeaned obs per day: keep k small or the fit is exact.
+# Add "ca" back when more countries have a daily source.
+FACTORS = ["debt", "fiscal"]
 NAMES = {iso: name for name, iso in ISO2.items()}
 
 WINDOW = 756    # ~3Y of business days, betas and residual vol

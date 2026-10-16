@@ -28,14 +28,14 @@ Add a theme: one `build_<theme>()` in `scripts/build_data.py` + one component in
 
 ### EGB spread model (daily)
 
-`spread_it (bp vs Bund) = FE_t + b_t · [debt, fiscal, ca]_it + e_it`
+`spread_it (bp vs Bund) = FE_t + b_t · [debt, fiscal]_it + e_it`
 
-- Yields: daily 10Y only (`src/data/egb_daily.parquet`), from Riksbank SWEA (series auto-discovered via `/Series`,
-  optional `RIKSBANK_API_KEY` in `.env`) and BTP 10Y from Banca d'Italia (`MFN_BMK.D.020.922.0.EUR.210`).
+- Yields: daily 10Y only (`src/data/egb_daily.parquet`): DE, FI, FR, NL from Riksbank SWEA (`{CC}GVB10Y`,
+  `RIKSBANK_API_KEY` in `.env`), IT and BTP 10Y from Banca d'Italia (`MFN_BMK.D.020.922.0.EUR.210`).
   Only countries with a daily source are in the model; the sample starts when all of them have data.
 - Fundamentals from AMECO as difference vs Germany, 12M-forward blend (month m weights m/12 on next year).
 - Rolling 3Y (756 business days) pooled OLS with daily fixed effects → pure cross-country relative value.
   Betas are pooled (one regression across all countries, not per country / not LOO).
 - Residual > 0 = cheap (above the 45° line). z = residual / the country's own 3Y residual vol; signal at |z| > 1.
-- Needs more than 4 countries incl. Germany (3 factors).
+- 5 countries → 2 factors (debt, fiscal balance). Add current account back in `FACTORS` when more countries have a daily source.
 - Caveat: AMECO is the latest vintage, so the backtest has look-ahead.

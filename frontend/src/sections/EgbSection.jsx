@@ -68,9 +68,7 @@ export default function EgbSection() {
         <StatCard label="Bund 10Y" value={bundLast.bund} unit="%" delta={(bundLast.bund - bundPrev.bund) * 100} />
         <StatCard label={`Cheapest · ${cheap.name}`} value={cheap.residual} unit="bp" digits={0} />
         <StatCard label={`Richest · ${rich.name}`} value={rich.residual} unit="bp" digits={0} />
-        <StatCard label="β debt" value={beta.debt} unit="bp/pp" />
-        <StatCard label="β fiscal" value={beta.fiscal} unit="bp/pp" />
-        <StatCard label="β current acc." value={beta.ca} unit="bp/pp" />
+        {d.factors.map((f) => <StatCard key={f} label={`β ${FACTOR_LABEL[f]}`} value={beta[f]} unit="bp/pp" />)}
       </div>
 
       <div className="grid">
@@ -82,7 +80,7 @@ export default function EgbSection() {
             <ScatterChart margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
               <XAxis type="number" dataKey="fair" name="Fitted" domain={[lo, hi]} ticks={fvTicks} {...axis}
-                label={{ value: "Fitted spread (bp) — debt + fiscal + CA", position: "bottom", fill: "var(--muted)", fontSize: 10 }} />
+                label={{ value: `Fitted spread (bp) — ${d.factors.map((f) => FACTOR_LABEL[f].toLowerCase()).join(" + ")}`, position: "bottom", fill: "var(--muted)", fontSize: 10 }} />
               <YAxis type="number" dataKey="spread" name="Actual" domain={[lo, hi]} ticks={fvTicks} {...axis} width={45}
                 label={{ value: "Actual spread vs Bund (bp)", angle: -90, position: "insideLeft", fill: "var(--muted)", fontSize: 10 }} />
               <ZAxis range={[70, 70]} />
@@ -121,7 +119,7 @@ export default function EgbSection() {
               <thead>
                 <tr>
                   <th>Country</th><th>10Y</th><th>Spread</th><th>Fitted</th><th>Residual</th><th>z</th><th>Signal</th>
-                  <th>Debt gap</th><th>Fiscal gap</th><th>CA gap</th><th>Obs</th>
+                  {d.factors.map((f) => <th key={f}>{FACTOR_LABEL[f]} gap</th>)}<th>Obs</th>
                 </tr>
               </thead>
               <tbody>
@@ -134,9 +132,7 @@ export default function EgbSection() {
                     <td className={r.residual > 0 ? "up" : "down"}>{signed(r.residual, 0)}</td>
                     <td className={SIGNAL_CLS[r.signal]}>{signed(r.z, 2)}</td>
                     <td className={SIGNAL_CLS[r.signal]}>{r.signal}</td>
-                    <td>{signed(r.debt, 0)}</td>
-                    <td>{signed(r.fiscal, 1)}</td>
-                    <td>{signed(r.ca, 1)}</td>
+                    {d.factors.map((f) => <td key={f}>{signed(r[f], f === "debt" ? 0 : 1)}</td>)}
                     <td className="muted">{r.obs_date}</td>
                   </tr>
                 ))}
@@ -156,7 +152,7 @@ export default function EgbSection() {
               </select>
             </div>
           }
-          note={sel && `Latest: actual ${fmt(sel.spread, 0)} bp = average ${fmt(sel.base, 0)} + debt ${signed(sel.c_debt, 0)} + fiscal ${signed(sel.c_fiscal, 0)} + CA ${signed(sel.c_ca, 0)} + residual ${signed(sel.residual, 0)}.`}
+          note={sel && `Latest: actual ${fmt(sel.spread, 0)} bp = average ${fmt(sel.base, 0)}${d.factors.map((f) => ` + ${FACTOR_LABEL[f].toLowerCase()} ${signed(sel[`c_${f}`], 0)}`).join("")} + residual ${signed(sel.residual, 0)}.`}
         >
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={series} syncId="egb-country" margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -239,7 +235,7 @@ export default function EgbSection() {
       <div className="info">
         <b>Model</b>
         <p>
-          spread<sub>i,t</sub> = α<sub>t</sub> + β<sub>t</sub> · [debt, fiscal balance, current account]<sub>i,t</sub> + ε<sub>i,t</sub>.
+          spread<sub>i,t</sub> = α<sub>t</sub> + β<sub>t</sub> · [{d.factors.map((f) => FACTOR_LABEL[f].toLowerCase()).join(", ")}]<sub>i,t</sub> + ε<sub>i,t</sub>.
           Pooled OLS with daily fixed effects over a rolling 3Y window (756 business days) — pure cross-country relative value.
           Fundamentals from AMECO (incl. Commission forecasts) as gaps vs Germany, blended 12M forward
           (month m puts weight m/12 on next year). Yields: daily 10Y from Riksbank SWEA and Banca d'Italia;

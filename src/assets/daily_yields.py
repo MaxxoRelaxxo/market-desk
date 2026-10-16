@@ -2,7 +2,7 @@
 Daily 10Y euro government bond yields.
 
 - Riksbank SWEA: Observations/{CC}GVB10Y/{from} (same call pattern as markets-data-hub).
-  Every euro country in ISO2 is tried; series that do not exist are skipped.
+  Euro 10Y series available in SWEA: DE, FI, FR, NL.
 - Banca d'Italia: BTP 10Y benchmark (cube BMK0200).
 
 Output: src/data/egb_daily.parquet  ->  date | country | yield | source
@@ -36,6 +36,8 @@ ISO2 = {
     "Portugal": "PT", "Slovakia": "SK", "Slovenia": "SI", "Spain": "ES",
 }
 
+SWEA_COUNTRIES = ["DE", "FI", "FR", "NL"]
+
 SCHEMA = {"date": pl.Date, "country": pl.String, "yield": pl.Float64, "source": pl.String}
 
 
@@ -63,7 +65,7 @@ def get_swea_series(series_id: str, from_date: str) -> list[dict]:
 
 def fetch_swea(start: str = "2000-01-01") -> pl.DataFrame:
     frames = []
-    for country in ISO2.values():
+    for country in SWEA_COUNTRIES:
         series_id = f"{country}GVB10Y"
         try:
             obs = get_swea_series(series_id, start)
@@ -87,7 +89,8 @@ def fetch_swea(start: str = "2000-01-01") -> pl.DataFrame:
 # BANCA D'ITALIA
 # ============================================================
 
-DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}")
+DATE_RE = re.compile(r"\d{4}[-/]\d{2}[-/]\d{2}|\d{2}/\d{2}/\d{4}")
+DATE_FORMATS = ["%Y-%m-%d", "%Y/%m/%d", "%d/%m/%Y"]
 
 
 def _decode(raw: bytes) -> str:
@@ -145,7 +148,7 @@ def fetch_bdi(series: str = BDI_SERIES) -> pl.DataFrame:
     d = pl.col(date_col).str.strip_chars()
     return (
         df.select(
-            pl.coalesce(d.str.to_date("%Y-%m-%d", strict=False), d.str.to_date("%d/%m/%Y", strict=False)).alias("date"),
+            pl.coalesce(d.str.to_date(f, strict=False) for f in DATE_FORMATS).alias("date"),
             pl.lit("IT").alias("country"),
             pl.col(value_col).str.strip_chars().str.replace(",", ".").cast(pl.Float64, strict=False).alias("yield"),
             pl.lit(f"Banca d'Italia {series}").alias("source"),
