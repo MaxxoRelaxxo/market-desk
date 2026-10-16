@@ -41,7 +41,9 @@ export default function EgbSection() {
   const spreads = withT(d.spreads);
   const sel = snap.find((r) => r.country === country);
   const loo = withT(looFreq === "daily" ? d.loo_daily : d.loo_weekly);
-  const equation = `Spread = ${fmt(fit.alpha_full, 1)} ${factors.map((f) => `${signed(fit[`b_full_${f}`], 2)}·${f}`).join(" ")}`;
+  const equation = `Spread = ${fmt(fit.alpha, 1)} ${factors.map((f) => `${signed(fit[`b_${f}`], 2)}·${f}`).join(" ")}`;
+  const k = factors.length + 1;
+  const regressors = factors.map((f) => FACTOR_LABEL[f]).join(" + ");
 
   const all = snap.flatMap((r) => [r.fair, r.spread]);
   const lo = Math.floor(Math.min(0, ...all) / 20) * 20;
@@ -69,7 +71,7 @@ export default function EgbSection() {
 
       <div className="grid">
         <Card title="RELATIVE VALUE MONITOR" span={2}
-          note="Debt, budget, current account: % of GDP, last full year (AMECO) with publication lag. TDS = −(budget + current account) / 2. Fitted = leave-one-out: each country priced off a fit on the other countries only. Residual = actual − fitted (bp, > 0 = cheap). z cross-sec. = residual / √(mean squared LOO residual); signal at |z| > 1. z 104w = residual vs its own 104-week history. Click a row for details.">
+          note="Debt, budget, current account: % of GDP, last full year (AMECO) with publication lag. TDS = −(budget + current account) / 2. Fitted = today's cross-section regression (ex Germany). Residual = actual − fitted (bp, > 0 = cheap). z cross-sec. = residual / regression σ; signal at |z| > 1. z 104w = residual vs its own 104-week history. Click a row for details.">
           <div className="table-wrap">
             <table className="table rv">
               <thead>
@@ -100,7 +102,7 @@ export default function EgbSection() {
         </Card>
 
         <Card title={`FAIR VALUE ${d.asof} (ABOVE LINE = CHEAP)`}
-          note="Fitted = a + b·debt + c·TDS fitted on the other countries (leave-one-out, ex Germany). Green/red: |z cross-sec.| > 1. Click a dot for details.">
+          note={`Fitted = a + β · (${regressors}) from today's cross-section (ex Germany). Green/red: |z cross-sec.| > 1. Click a dot for details.`}>
           <ResponsiveContainer width="100%" height={380}>
             <ScatterChart margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
@@ -117,7 +119,7 @@ export default function EgbSection() {
         </Card>
 
         <Card title="FAIR VALUE DECOMPOSITION (BP)"
-          note="Actual = intercept + β·debt + β·TDS + residual, with each country's own LOO coefficients.">
+          note={`Actual = intercept (${fmt(fit.alpha, 1)} bp) + β · (${regressors}) + residual. Same β for every country.`}>
           <ResponsiveContainer width="100%" height={380}>
             <BarChart data={decomp} layout="vertical" stackOffset="sign" margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
               onClick={(e) => e?.activeLabel && setCountry(e.activeLabel)}>
@@ -195,7 +197,7 @@ export default function EgbSection() {
 
         <Card title="LOO RESIDUAL OVER TIME (BP)" span={2}
           right={<Toggle value={looFreq} onChange={setLooFreq} options={[{ id: "daily", label: "2Y DAILY" }, { id: "weekly", label: "MAX WEEKLY" }]} />}
-          note="Actual − fair value from a fit on the other countries only (> 0 = cheap). Selected country highlighted.">
+          note="Robustness check: actual − fair value from a fit on the other countries only (> 0 = cheap). Extreme countries are priced by extrapolation, so their LOO residual is large and noisy. Selected country highlighted.">
           <ResponsiveContainer width="100%" height={320}>
             <LineChart data={loo} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
@@ -215,7 +217,7 @@ export default function EgbSection() {
         </Card>
 
         <Card title="LOO VS ALL COUNTRIES (LATEST)"
-          note="All countries: one regression incl. the country itself (equation line above). LOO: the country is left out and priced off the rest — used for the signal. A big gap = high-leverage country that pulls the all-country line towards itself.">
+          note="All countries: the model (equation line above), used for the signal. LOO: the country is left out and priced off the rest. Same sign = robust signal; a much larger LOO residual = the country sits at the edge of the cross-section.">
           <div className="table-wrap"><table className="table">
             <thead>
               <tr>
@@ -227,11 +229,11 @@ export default function EgbSection() {
               {snap.map((r) => (
                 <tr key={r.country} onClick={() => setCountry(r.country)}>
                   <td>{r.name}</td>
-                  <td>{fmt(r.fair_full, 1)}</td>
-                  <td>{signed(r.residual_full, 1)}</td>
                   <td>{fmt(r.fair, 1)}</td>
-                  <td className={r.residual > 0 ? "up" : "down"}>{signed(r.residual, 1)}</td>
-                  {factors.map((f) => <td key={f}>{fmt(r[`b_${f}`], 2)}</td>)}
+                  <td>{signed(r.residual, 1)}</td>
+                  <td>{fmt(r.loo_fair, 1)}</td>
+                  <td className={Math.sign(r.loo_residual) === Math.sign(r.residual) ? "" : "down"}>{signed(r.loo_residual, 1)}</td>
+                  {factors.map((f) => <td key={f}>{fmt(r[`loo_b_${f}`], 2)}</td>)}
                 </tr>
               ))}
             </tbody>
@@ -259,13 +261,14 @@ export default function EgbSection() {
       <div className="info">
         <b>Model</b>
         <p>
-          Each day: spread<sub>i</sub> = a + b·debt<sub>i</sub> + c·TDS<sub>i</sub> + ε<sub>i</sub>, OLS across countries ex Germany.
-          Fair value is leave-one-out: each country is priced off the regression on the other countries.
+          Each day: spread<sub>i</sub> = a + β · ({regressors})<sub>i</sub> + ε<sub>i</sub>, OLS across countries ex Germany.
+          Debt + TDS is used from {d.min_n_two_factors} countries; with fewer, debt only — two factors on {fit.n} countries
+          leave too few degrees of freedom and an extreme country (e.g. Netherlands, lowest TDS) dominates the fit.
           Fundamentals are AMECO levels for the last full year, used from {d.lag_days} days after year-end.
           TDS (twin deficit score) = −(budget balance + current account) / 2. Yields: daily 10Y from Riksbank SWEA,
           Banca d'Italia and Banco de España.
         </p>
-        <p className="muted">With N = {fit.n} countries and 3 parameters the fit has {fit.n - 3} degrees of freedom — read residuals with care. AMECO is the latest vintage, so the backtest has look-ahead.</p>
+        <p className="muted">N = {fit.n} countries, {k} parameters → {fit.n - k} degrees of freedom. AMECO is the latest vintage, so the backtest has look-ahead.</p>
       </div>
     </div>
   );

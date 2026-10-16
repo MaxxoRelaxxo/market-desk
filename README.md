@@ -28,15 +28,17 @@ Add a theme: one `build_<theme>()` in `scripts/build_data.py` + one component in
 
 ### EGB relative value model (daily cross-section)
 
-`spread_i (bp vs Bund) = a + b · debt_i + c · tds_i + e_i` — one OLS per day across countries ex Germany.
+`spread_i (bp vs Bund) = a + b · debt_i [+ c · tds_i] + e_i` — one OLS per day across countries ex Germany.
 
 - Yields: daily 10Y only (`src/data/egb_daily.parquet`): DE, FI, FR, NL from Riksbank SWEA (`{CC}GVB10Y`,
   `RIKSBANK_API_KEY` in `.env`), IT (BTP 10Y) from Banca d'Italia (`MFN_BMK.D.020.922.0.EUR.210`),
   ES (Bono 10Y) from Banco de España (`D_G0B1F0ZP`).
 - Fundamentals: AMECO levels (% GDP) of the last full year, used from 120 days after year-end (`LAG_DAYS`).
   TDS (twin deficit score) = −(budget balance + current account) / 2.
-- Fair value is leave-one-out: each country priced off a fit on the other countries only. With few countries a
-  high-leverage country (e.g. France, highest TDS) otherwise pulls the line towards itself and hides its mispricing.
-- Residual > 0 = cheap (above the 45° line). z cross-sec. = LOO residual / √(PRESS/n) (signal at |z| > 1);
-  z 104w = residual vs its own 104-week history. The all-country fit is shown in the header and LOO panel.
+- Regressors scale with the cross-section: debt + TDS from 8 countries (`MIN_N_TWO_FACTORS`), debt only below.
+  With 5 countries two factors leave 2 degrees of freedom and an extreme country (Netherlands, lowest TDS)
+  dominates the fit.
+- Residual > 0 = cheap (above the 45° line). z cross-sec. = residual / regression σ (signal at |z| > 1);
+  z 104w = residual vs its own 104-week history.
+- LOO (robustness): each country priced off a fit on the other countries only.
 - Caveat: AMECO is the latest vintage, so the backtest has look-ahead.

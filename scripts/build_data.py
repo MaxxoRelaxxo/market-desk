@@ -11,8 +11,8 @@ import polars as pl
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from models import egb  # noqa: E402
-from utils.series import FRED_SERIES  # noqa: E402
+from models import egb
+from utils.series import FRED_SERIES
 
 DATA_DIR = ROOT / "src" / "data"
 OUT_DIR = ROOT / "frontend" / "public" / "data"
@@ -100,8 +100,8 @@ def _weekly(df: pl.DataFrame, by: str | None = None) -> pl.DataFrame:
 
 
 def build_egb() -> None:
-    model = egb.run_model()
-    snap = egb.snapshot(model).with_columns(pl.col("country").replace_strict(egb.NAMES).alias("name"))
+    model, factors = egb.run_model()
+    snap = egb.snapshot(model, factors).with_columns(pl.col("country").replace_strict(egb.NAMES).alias("name"))
     recent = model.filter(pl.col("date") >= pl.col("date").max().dt.offset_by("-2y"))
     cols = ["date", "spread", "fair", "residual", "z_cs"]
     fit = snap.row(0, named=True)
@@ -120,20 +120,22 @@ def build_egb() -> None:
 
     _dump({
         "asof": model["date"].max(),
-        "factors": egb.FACTORS,
+        "factors": factors,
+        "all_factors": egb.ALL_FACTORS,
+        "min_n_two_factors": egb.MIN_N_TWO_FACTORS,
         "lag_days": egb.LAG_DAYS,
         "stale": _records(snap.filter(pl.col("obs_date") < pl.col("date")).select("country", "obs_date")),
-        "fit": {k: fit[k] for k in ["alpha_full", *(f"b_full_{f}" for f in egb.FACTORS), "r2", "n", "sigma"]},
+        "fit": {k: fit[k] for k in ["alpha", *(f"b_{f}" for f in factors), "r2", "n", "sigma"]},
         "names": {c: egb.NAMES[c] for c in model["country"].unique().sort()},
         "snapshot": _records(snap, 2),
         "bund": _records(bund.sort("date"), 3),
         "spreads": _records(spreads, 1),
         "daily": per_country(recent),                                       # last 2Y, daily
         "series": per_country(_weekly(model.select("country", *cols), "country")),  # full, weekly
-        "loo_daily": _records(recent.pivot(on="country", index="date", values="residual").sort("date"), 1),
+        "loo_daily": _records(recent.pivot(on="country", index="date", values="loo_residual").sort("date"), 1),
         "loo_weekly": _records(
-            _weekly(model.select("date", "country", "residual"), "country")
-            .pivot(on="country", index="date", values="residual").sort("date"), 1),
+            _weekly(model.select("date", "country", "loo_residual"), "country")
+            .pivot(on="country", index="date", values="loo_residual").sort("date"), 1),
         "mean_reversion": _records(egb.mean_reversion(model), 2),
     }, "egb.json")
 
