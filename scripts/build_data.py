@@ -45,7 +45,7 @@ US_HISTORY = [
 def build_us_rates() -> None:
     df = (
         pl.read_parquet(DATA_DIR / "us_rates.parquet")
-        .filter(~pl.col("series_id").is_in(list(egb.YIELDS)))
+        .filter(pl.col("series_id").is_in(list(US_LABELS)))
         .drop_nulls("value")
         .sort("series_id", "date")
     )
@@ -94,32 +94,38 @@ def build_us_rates() -> None:
 # EGB SPREAD MODEL
 # ============================================================
 
+def _weekly(df: pl.DataFrame, by: str | None = None) -> pl.DataFrame:
+    return df.sort("date").group_by_dynamic("date", every="1w", group_by=by).agg(pl.all().last())
+
+
 def build_egb() -> None:
     model, betas = egb.run_model()
-    daily = egb.run_daily(model, betas)
-    live = model if daily is None else daily  # snapshot + bund on daily data when available
-    snap = egb.snapshot(live).with_columns(pl.col("country").replace_strict(egb.NAMES).alias("name"))
+    snap = egb.snapshot(model).with_columns(pl.col("country").replace_strict(egb.NAMES).alias("name"))
+    recent = model.filter(pl.col("date") >= pl.col("date").max().dt.offset_by("-2y"))
+    cols = ["date", "spread", "fair", "residual", "z"]
 
     def per_country(df: pl.DataFrame) -> dict:
         return {
-            c: _records(g.select("date", "spread", "fair", "residual", "z"), 2)
+            c: _records(g.select(cols), 2)
             for (c,), g in df.filter(pl.col("country") != egb.BENCH).group_by("country", maintain_order=True)
         }
 
-    spreads = model.pivot(on="country", index="date", values="spread").sort("date").drop(egb.BENCH)
-    bund = live.filter(pl.col("country") == egb.BENCH).select("date", pl.col("yield").alias("bund"))
+    spreads = (
+        _weekly(model.select("date", "country", "spread"), "country")
+        .pivot(on="country", index="date", values="spread").sort("date").drop(egb.BENCH)
+    )
+    bund = recent.filter(pl.col("country") == egb.BENCH).select("date", pl.col("yield").alias("bund"))
 
     _dump({
-        "asof": live["date"].max(),
-        "frequency": "monthly" if daily is None else "daily",
+        "asof": model["date"].max(),
         "factors": egb.FACTORS,
-        "names": {c: n for c, n in egb.NAMES.items() if c != egb.BENCH},
+        "names": {c: egb.NAMES[c] for c in model["country"].unique().sort() if c != egb.BENCH},
         "snapshot": _records(snap, 2),
         "bund": _records(bund.sort("date"), 3),
         "spreads": _records(spreads, 1),
-        "series": per_country(model),
-        "daily": {} if daily is None else per_country(daily),
-        "betas": _records(betas.rename({f"b_{f}": f for f in egb.FACTORS}), 2),
+        "daily": per_country(recent),                                       # last 2Y, daily
+        "series": per_country(_weekly(model.select("country", *cols), "country")),  # full, weekly
+        "betas": _records(_weekly(betas).rename({f"b_{f}": f for f in egb.FACTORS}), 2),
         "mean_reversion": _records(egb.mean_reversion(model), 2),
     }, "egb.json")
 
@@ -130,4 +136,7 @@ THEMES = {"us_rates": build_us_rates, "egb": build_egb}
 if __name__ == "__main__":
     for name in sys.argv[1:] or THEMES:
         print(f"Building {name}")
-        THEMES[name]()
+        try:
+            THEMES[name]()
+        except FileNotFoundError as e:
+            print(f"  skipped {name}: {e}")

@@ -26,12 +26,16 @@ cd frontend && npm install && npm run dev
 Themes (tabs, F1/F2…): **EGB Spreads** (`src/models/egb.py`) and **US Rates**.
 Add a theme: one `build_<theme>()` in `scripts/build_data.py` + one component in `frontend/src/sections/` registered in `THEMES` in `App.jsx`.
 
-### EGB spread model
+### EGB spread model (daily)
 
 `spread_it (bp vs Bund) = FE_t + b_t · [debt, fiscal, ca]_it + e_it`
 
+- Yields: daily 10Y only (`src/data/egb_daily.parquet`), from Riksbank SWEA (series auto-discovered via `/Series`,
+  optional `RIKSBANK_API_KEY` in `.env`) and BTP 10Y from Banca d'Italia (`MFN_BMK.D.020.922.0.EUR.210`).
+  Only countries with a daily source are in the model; the sample starts when all of them have data.
 - Fundamentals from AMECO as difference vs Germany, 12M-forward blend (month m weights m/12 on next year).
-- Rolling 36M pooled OLS with month fixed effects → pure cross-country relative value.
-- Residual > 0 = cheap vs fundamentals (above the 45° line). z = residual / the country's own 36M residual vol; signal at |z| > 1.
-- Betas are pooled (one regression across all countries per month, not per country / not LOO). Country contribution = β × gap vs Germany relative to the cross-country average gap.
-- Caveat: AMECO is latest vintage, so the backtest has look-ahead.
+- Rolling 3Y (756 business days) pooled OLS with daily fixed effects → pure cross-country relative value.
+  Betas are pooled (one regression across all countries, not per country / not LOO).
+- Residual > 0 = cheap (above the 45° line). z = residual / the country's own 3Y residual vol; signal at |z| > 1.
+- Needs more than 4 countries incl. Germany (3 factors).
+- Caveat: AMECO is the latest vintage, so the backtest has look-ahead.

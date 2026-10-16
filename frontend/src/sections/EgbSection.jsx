@@ -32,13 +32,12 @@ export default function EgbSection() {
   const d = state.data;
   if (!d) return <Status state={state} what="EGB data" />;
 
-  const hasDaily = Object.keys(d.daily ?? {}).length > 0;
-  const series = (hasDaily && freq === "daily" ? d.daily : d.series)[country] ?? [];
+  const series = (freq === "daily" ? d.daily : d.series)[country] ?? [];
   const bund = d.bund;
   const bundLast = bund[bund.length - 1];
   const bundPrev = bund[bund.length - 2];
   const snap = d.snapshot;
-  const snapDate = d.frequency === "daily" ? snap[0]?.date : snap[0]?.date.slice(0, 7);
+  const snapDate = snap[0]?.date;
   const base = snap[0]?.base;
   const ranked = snap.filter((r) => r.z != null);
   const cheap = ranked[0];
@@ -62,7 +61,7 @@ export default function EgbSection() {
     <div>
       <div className="section-head">
         <h2>EGB SPREADS <span className="muted">| Fair value vs fundamentals</span></h2>
-        <div className="muted">10Y spread vs Bund · {d.frequency} · as of {snapDate}</div>
+        <div className="muted">10Y spread vs Bund · daily · as of {snapDate}</div>
       </div>
 
       <div className="stats">
@@ -116,13 +115,13 @@ export default function EgbSection() {
         </Card>
 
         <Card title="RELATIVE VALUE MONITOR" span={2}
-          note="Residual = actual − fitted (bp, > 0 = cheap). z = residual / the country's own 36M residual volatility. Gaps = country minus Germany, % of GDP, 12M forward. Src: D = daily, M = latest FRED monthly (carried forward). Click a row for details.">
+          note="Residual = actual − fitted (bp, > 0 = cheap). z = residual / the country's own 3Y residual volatility. Gaps = country minus Germany, % of GDP, 12M forward. Obs = date of the latest print (carried forward max 5 business days). Click a row for details.">
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
                   <th>Country</th><th>10Y</th><th>Spread</th><th>Fitted</th><th>Residual</th><th>z</th><th>Signal</th>
-                  <th>Debt gap</th><th>Fiscal gap</th><th>CA gap</th><th>Src</th><th>Obs</th>
+                  <th>Debt gap</th><th>Fiscal gap</th><th>CA gap</th><th>Obs</th>
                 </tr>
               </thead>
               <tbody>
@@ -138,7 +137,6 @@ export default function EgbSection() {
                     <td>{signed(r.debt, 0)}</td>
                     <td>{signed(r.fiscal, 1)}</td>
                     <td>{signed(r.ca, 1)}</td>
-                    <td title={r.source} className={r.source?.startsWith("FRED") ? "muted" : ""}>{r.source?.startsWith("FRED") ? "M" : "D"}</td>
                     <td className="muted">{r.obs_date}</td>
                   </tr>
                 ))}
@@ -152,9 +150,7 @@ export default function EgbSection() {
           span={2}
           right={
             <div style={{ display: "flex", gap: 8 }}>
-              {hasDaily && (
-                <Toggle value={freq} onChange={setFreq} options={[{ id: "daily", label: "DAILY 2Y" }, { id: "monthly", label: "MONTHLY" }]} />
-              )}
+              <Toggle value={freq} onChange={setFreq} options={[{ id: "daily", label: "2Y DAILY" }, { id: "weekly", label: "MAX WEEKLY" }]} />
               <select className="select" value={country} onChange={(e) => setCountry(e.target.value)}>
                 {countries.map((c) => <option key={c} value={c}>{c} · {d.names[c]}</option>)}
               </select>
@@ -205,8 +201,8 @@ export default function EgbSection() {
           </ResponsiveContainer>
         </Card>
 
-        <Card title="PRICE OF FUNDAMENTALS · POOLED β (36M ROLLING)"
-          note="One cross-country regression per month, not per country and not leave-one-out: every country shares the same β. Read as bp of spread per 1pp of GDP gap vs Germany (debt > 0 and fiscal/CA < 0 expected). Large swings 2013–2017 = debt and fiscal are collinear.">
+        <Card title="PRICE OF FUNDAMENTALS · POOLED β (3Y ROLLING)"
+          note="One cross-country regression on a rolling 3Y window of daily data, not per country and not leave-one-out: every country shares the same β. Read as bp of spread per 1pp of GDP gap vs Germany (debt > 0 and fiscal/CA < 0 expected). Large swings = factors are collinear (few countries, slow-moving fundamentals).">
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={d.betas} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
@@ -223,7 +219,7 @@ export default function EgbSection() {
         </Card>
 
         <Card title="BACKTEST · MEAN REVERSION (3M)"
-          note="Correlation of residual with the next 3M spread change (negative = residual closes). Hit rate = share of months where the spread moved towards fair.">
+          note="Correlation of residual with the spread change over the next 63 business days (negative = residual closes). Hit rate = share of days where the spread then moved towards fair. Overlapping windows.">
           <table className="table">
             <thead><tr><th>Country</th><th>Corr</th><th>Hit rate</th><th>N</th></tr></thead>
             <tbody>
@@ -244,11 +240,10 @@ export default function EgbSection() {
         <b>Model</b>
         <p>
           spread<sub>i,t</sub> = α<sub>t</sub> + β<sub>t</sub> · [debt, fiscal balance, current account]<sub>i,t</sub> + ε<sub>i,t</sub>.
-          Pooled OLS with month fixed effects over a rolling 36M window — pure cross-country relative value.
+          Pooled OLS with daily fixed effects over a rolling 3Y window (756 business days) — pure cross-country relative value.
           Fundamentals from AMECO (incl. Commission forecasts) as gaps vs Germany, blended 12M forward
-          (month m puts weight m/12 on next year). Estimation on FRED/OECD monthly 10Y averages; the live snapshot
-          applies the latest β and residual vol to daily yields (Riksbank SWEA, Banca d'Italia), falling back to the latest
-          monthly spread for countries without a daily source.
+          (month m puts weight m/12 on next year). Yields: daily 10Y from Riksbank SWEA and Banca d'Italia;
+          only countries with a daily source are in the model.
         </p>
         <p className="muted">Caveat: AMECO is the latest vintage — historical fundamentals are revised, so the backtest has look-ahead.</p>
       </div>
