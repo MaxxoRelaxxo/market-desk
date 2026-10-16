@@ -33,8 +33,7 @@ Add a theme: one `build_<theme>()` in `scripts/build_data.py` + one component in
 - Yields: daily 10Y only (`src/data/egb_daily.parquet`): DE, FI, FR, NL from Riksbank SWEA (`{CC}GVB10Y`,
   `RIKSBANK_API_KEY` in `.env`), IT (BTP 10Y) from Banca d'Italia (`MFN_BMK.D.020.922.0.EUR.210`),
   ES (Bono 10Y) from Banco de España (`D_G0B1F0ZP`), BE from the National Bank of Belgium
-  (`BE2,DF_IROLOYLD` — long-term yield of the reference loans, 11am; AT/GR/IE/PT have codes but no data).
-  No free daily source found for AT, GR, IE, PT, SK, SI, LV.
+  (`BE2,DF_IROLOYLD` — long-term yield of the reference loans, 11am).
 - Unbalanced panel: a country enters when its series starts; the snapshot uses the latest date with the full
   recent cross-section, so a lagging source (Banca d'Italia) does not drop a country from the table.
 - Fundamentals: AMECO levels (% GDP) of the last full year, used from 120 days after year-end (`LAG_DAYS`).

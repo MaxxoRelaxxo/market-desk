@@ -34,9 +34,6 @@ BDI_URL = (
 BDI_SERIES = "MFN_BMK.D.020.922.0.EUR.210"
 BDE_URL = "https://app.bde.es/bierest/resources/srdatosapp/listaSeries"
 BDE_SERIES = "D_G0B1F0ZP"
-# Banco de Portugal BPstat: (domain_id, dataset_id, series_id) — find with scripts/find_bpstat.py
-BPSTAT_URL = "https://bpstat.bportugal.pt/data/v1"
-BPSTAT_SERIES: tuple[int, str, int] | None = None
 NBB_URL = "https://nsidisseminate-stat.nbb.be/rest/data/BE2,DF_IROLOYLD,1.0"
 NBB_COUNTRIES = ["BE"]  # AT, GR, IE, PT are in the code list but return no observations
 NBB_HEADERS = {  # the NBB WAF rejects non-browser requests
@@ -266,45 +263,6 @@ def fetch_nbb(countries: list[str] = NBB_COUNTRIES, start: str = "2000-01-01") -
 
 
 # ============================================================
-# BANCO DE PORTUGAL (BPstat)
-# ============================================================
-
-def fetch_bpstat(series: tuple[int, str, int] | None = BPSTAT_SERIES, start: str = "2000-01-01") -> pl.DataFrame:
-    """
-    JSON-stat 2.0 per page (extension.next_page): one series requested, so every non-time
-    dimension has size 1 and `value` runs along the time categories.
-    """
-    if series is None:
-        print("  BPstat: BPSTAT_SERIES not set (run scripts/find_bpstat.py)")
-        return pl.DataFrame(schema=SCHEMA)
-    domain, dataset, series_id = series
-    url = f"{BPSTAT_URL}/domains/{domain}/datasets/{dataset}"
-    params = {"lang": "EN", "series_ids": series_id, "obs_since": start}
-    dates, values = [], []
-    while url:
-        js = requests.get(url, params=params, timeout=60).json()
-        index = js["dimension"][js["role"]["time"][0]]["category"]["index"]
-        periods = sorted(index, key=index.get) if isinstance(index, dict) else list(index)
-        raw = js.get("value", [])
-        vals = [raw.get(str(i)) for i in range(len(periods))] if isinstance(raw, dict) else raw
-        dates += periods
-        values += vals
-        url, params = js.get("extension", {}).get("next_page"), None
-
-    print(f"  BPstat {series_id}: {len(dates)} rows")
-    return (
-        pl.DataFrame({"date": dates, "yield": values}, schema={"date": pl.String, "yield": pl.Float64}, strict=False)
-        .select(
-            pl.col("date").str.slice(0, 10).str.to_date(),
-            pl.lit("PT").alias("country"),
-            "yield",
-            pl.lit(f"Banco de Portugal BPstat {series_id}").alias("source"),
-        )
-        .drop_nulls()
-    )
-
-
-# ============================================================
 # SAVE
 # ============================================================
 
@@ -316,7 +274,6 @@ def save_daily_parquet(start: str = "2000-01-01") -> Path:
         ("Banca d'Italia", fetch_bdi),
         ("Banco de España", lambda: fetch_bde(start_year=int(start[:4]))),
         ("NBB", lambda: fetch_nbb(start=start)),
-        ("Banco de Portugal", lambda: fetch_bpstat(start=start)),
     ]
     for name, fetch in sources:
         try:
