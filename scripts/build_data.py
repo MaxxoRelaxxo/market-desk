@@ -122,6 +122,7 @@ def build_egb() -> None:
         "asof": model["date"].max(),
         "factors": egb.FACTORS,
         "lag_days": egb.LAG_DAYS,
+        "stale": _records(snap.filter(pl.col("obs_date") < pl.col("date")).select("country", "obs_date")),
         "fit": {k: fit[k] for k in ["alpha_full", *(f"b_full_{f}" for f in egb.FACTORS), "r2", "n", "sigma"]},
         "names": {c: egb.NAMES[c] for c in model["country"].unique().sort()},
         "snapshot": _records(snap, 2),

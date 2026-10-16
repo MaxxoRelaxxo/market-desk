@@ -62,6 +62,9 @@ export default function EgbSection() {
       </div>
       <div className="eq-line">
         {d.asof} | {equation} | R² {fmt(fit.r2, 2)} | N {fit.n} | σ {fmt(fit.sigma, 1)} bps | lag {d.lag_days}d
+        {d.stale?.length > 0 && (
+          <span className="stale"> | stale: {d.stale.map((r) => `${r.country} ${r.obs_date}`).join(", ")}</span>
+        )}
       </div>
 
       <div className="grid">
@@ -148,19 +151,20 @@ export default function EgbSection() {
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={series} syncId="egb-country" margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
-              <XAxis {...timeAxis(series)} />
+              <XAxis {...timeAxis(series)} hide />
               <YAxis {...axis} width={45} />
               <Tooltip content={<TimeTip digits={1} unit=" bp" />} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Legend verticalAlign="top" wrapperStyle={{ fontSize: 11, paddingBottom: 4 }} />
               <Line dataKey="spread" name="Actual" stroke={COLORS[0]} dot={false} strokeWidth={1.8} />
               <Line dataKey="fair" name="Fitted" stroke={COLORS[1]} dot={false} strokeWidth={1.5} strokeDasharray="5 3" />
             </ComposedChart>
           </ResponsiveContainer>
-          <ResponsiveContainer width="100%" height={140}>
-            <BarChart data={series} syncId="egb-country" margin={{ top: 5, right: 16, left: 0, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={series} syncId="egb-country" barCategoryGap={0} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" vertical={false} />
               <XAxis {...timeAxis(series)} />
-              <YAxis {...axis} width={45} domain={[-3, 3]} allowDataOverflow />
+              <YAxis {...axis} width={45} domain={[-3, 3]} ticks={[-3, -2, -1, 0, 1, 2, 3]} allowDataOverflow
+                label={{ value: "z cross-sec.", angle: -90, position: "insideLeft", fill: "var(--muted)", fontSize: 10 }} />
               <Tooltip content={<TimeTip />} />
               <ReferenceLine y={1} stroke={UP} strokeDasharray="3 3" />
               <ReferenceLine y={-1} stroke={DOWN} strokeDasharray="3 3" />
@@ -212,7 +216,7 @@ export default function EgbSection() {
 
         <Card title="LOO VS ALL COUNTRIES (LATEST)"
           note="All countries: one regression incl. the country itself (equation line above). LOO: the country is left out and priced off the rest — used for the signal. A big gap = high-leverage country that pulls the all-country line towards itself.">
-          <table className="table">
+          <div className="table-wrap"><table className="table">
             <thead>
               <tr>
                 <th>Country</th><th>Fitted (all)</th><th>Resid. (all)</th><th>Fitted (LOO)</th><th>Resid. (LOO)</th>
@@ -231,12 +235,12 @@ export default function EgbSection() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </Card>
 
         <Card title="BACKTEST · MEAN REVERSION (3M)"
           note="Correlation of residual with the spread change over the next 63 business days (negative = residual closes). Hit rate = share of days where the spread then moved towards fair. Overlapping windows.">
-          <table className="table">
+          <div className="table-wrap"><table className="table">
             <thead><tr><th>Country</th><th>Corr</th><th>Hit rate</th><th>N</th></tr></thead>
             <tbody>
               {d.mean_reversion.map((r) => (
@@ -248,7 +252,7 @@ export default function EgbSection() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </Card>
       </div>
 

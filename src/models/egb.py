@@ -29,7 +29,7 @@ NAMES = {iso: name for name, iso in ISO2.items()}
 LAG_DAYS = 120  # AMECO year Y used from (Y+1)-01-01 + LAG_DAYS
 Z_WINDOW = 520  # 104 weeks of business days
 HORIZON = 63    # ~3M, backtest
-MAX_GAP = 5     # forward-fill holidays / missing prints up to this many business days
+MAX_GAP = 10    # forward-fill holidays / lagging sources (Banca d'Italia snapshot) up to this many business days
 
 
 def load_spreads() -> pl.DataFrame:

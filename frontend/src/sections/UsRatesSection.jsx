@@ -106,7 +106,7 @@ export default function UsRatesSection() {
               ))}
             </LineChart>
           </ResponsiveContainer>
-          <table className="table">
+          <div className="table-wrap"><table className="table">
             <thead>
               <tr>
                 <th>Tenor</th><th>Latest</th>
@@ -125,18 +125,18 @@ export default function UsRatesSection() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </Card>
 
         <Card title="CHANGE (BP)" note="Treasury constant maturity (DGS) and TIPS real yields (DFII), FRED.">
-          <table className="table">
+          <div className="table-wrap"><table className="table">
             <thead>
               <tr><th>Series</th><th>ID</th><th>Level %</th>{CHANGES.map(([, l]) => <th key={l}>{l}</th>)}</tr>
             </thead>
             <tbody>
               {d.latest.map((r) => (
                 <tr key={r.series_id}>
-                  <td>{r.label}</td>
+                  <td>{r.label.replace("Treasury Inflation-Protected Securities", "TIPS")}</td>
                   <td className="muted">{r.series_id}</td>
                   <td>{fmt(r.value)}</td>
                   {CHANGES.map(([c]) => (
@@ -145,7 +145,7 @@ export default function UsRatesSection() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </Card>
 
         {PANELS.map((p, i) => {
