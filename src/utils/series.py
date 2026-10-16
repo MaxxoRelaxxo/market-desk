@@ -36,4 +36,20 @@ FRED_SERIES = {
     "mortgage": {
         "US 30Y Fixed Rate Mortgage Average": "MORTGAGE30US",
     },
+        "egb_10y": {
+        "Austria Government Bond 10Y": "IRLTLT01ATM156N",
+        "Belgium Government Bond 10Y": "IRLTLT01BEM156N",
+        "Finland Government Bond 10Y": "IRLTLT01FIM156N",
+        "France Government Bond 10Y": "IRLTLT01FRM156N",
+        "Germany Government Bond 10Y": "IRLTLT01DEM156N",
+        "Greece Government Bond 10Y": "IRLTLT01GRM156N",
+        "Ireland Government Bond 10Y": "IRLTLT01IEM156N",
+        "Italy Government Bond 10Y": "IRLTLT01ITM156N",
+        "Latvia Government Bond 10Y": "IRLTLT01LVM156N",
+        "Netherlands Government Bond 10Y": "IRLTLT01NLM156N",
+        "Portugal Government Bond 10Y": "IRLTLT01PTM156N",
+        "Slovakia Government Bond 10Y": "IRLTLT01SKM156N",
+        "Slovenia Government Bond 10Y": "IRLTLT01SIM156N",
+        "Spain Government Bond 10Y": "IRLTLT01ESM156N",
+    },
 }
