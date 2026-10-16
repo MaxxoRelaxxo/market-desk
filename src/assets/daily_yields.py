@@ -10,6 +10,7 @@ Output: src/data/egb_daily.parquet  ->  date | country | yield | source
 
 import io
 import os
+import zipfile
 import re
 import time
 from pathlib import Path
@@ -54,8 +55,8 @@ def get_swea_series(series_id: str, from_date: str) -> list[dict]:
         if r.status_code == 429:
             time.sleep(int(r.headers.get("Retry-After", 15 * (attempt + 1))))
             continue
-        if r.status_code in (400, 404):
-            return []
+        if r.status_code in (204, 400, 404) or not r.content.strip():
+            return []  # series does not exist
         r.raise_for_status()
         return r.json() or []
     raise RuntimeError(f"SWEA rate limit: {series_id}")
@@ -65,7 +66,11 @@ def fetch_swea(start: str = "2000-01-01") -> pl.DataFrame:
     frames = []
     for country in ISO2.values():
         series_id = f"{country}GVB10Y"
-        obs = get_swea_series(series_id, start)
+        try:
+            obs = get_swea_series(series_id, start)
+        except Exception as e:  # noqa: BLE001
+            print(f"  SWEA {series_id}: failed ({e})")
+            continue
         print(f"  SWEA {series_id}: {len(obs)} rows")
         if obs:
             frames.append(
@@ -87,10 +92,16 @@ DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}")
 
 
 def _decode(raw: bytes) -> str:
+    """Infostat may return a zip archive; text is UTF-8 or Windows-1252."""
+    if raw[:2] == b"PK":
+        with zipfile.ZipFile(io.BytesIO(raw)) as z:
+            name = ([n for n in z.namelist() if n.lower().endswith((".csv", ".txt"))] or z.namelist())[0]
+            print(f"  Banca d'Italia: zip {z.namelist()} -> {name}")
+            raw = z.read(name)
     try:
         return raw.decode("utf-8-sig")
     except UnicodeDecodeError:
-        return raw.decode("cp1252")  # Infostat exports are Windows-1252 (e.g. 0xAE = ®)
+        return raw.decode("latin-1")  # never fails; ® etc. in metadata only
 
 
 def _pick(columns: list[str], *keys: str) -> str:
