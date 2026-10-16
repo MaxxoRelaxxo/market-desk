@@ -33,7 +33,11 @@ def fetch_fred(
         timeout=30,
     )
 
-    response.raise_for_status()
+    if not response.ok:
+        raise RuntimeError(
+            f"FRED error for {series_id}: "
+            f"{response.status_code} - {response.text}"
+        )
 
     observations = response.json()["observations"]
 

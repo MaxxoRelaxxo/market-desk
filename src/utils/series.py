@@ -45,7 +45,7 @@ FRED_SERIES = {
         "Greece Government Bond 10Y": "IRLTLT01GRM156N",
         "Ireland Government Bond 10Y": "IRLTLT01IEM156N",
         "Italy Government Bond 10Y": "IRLTLT01ITM156N",
-        "Latvia Government Bond 10Y": "IRLTLT01LVM156N",
+        "Latvia Government Bond 10Y": "LVAIRLTLT01STM",
         "Netherlands Government Bond 10Y": "IRLTLT01NLM156N",
         "Portugal Government Bond 10Y": "IRLTLT01PTM156N",
         "Slovakia Government Bond 10Y": "IRLTLT01SKM156N",
