@@ -31,5 +31,6 @@ Add a theme: one `build_<theme>()` in `scripts/build_data.py` + one component in
 
 - Fundamentals from AMECO as difference vs Germany, 12M-forward blend (month m weights m/12 on next year).
 - Rolling 36M pooled OLS with month fixed effects → pure cross-country relative value.
-- Residual > 0 = cheap vs fundamentals. Signal on residual z-score vs own 3Y history (|z| > 1).
+- Residual > 0 = cheap vs fundamentals (above the 45° line). z = residual / the country's own 36M residual vol; signal at |z| > 1.
+- Betas are pooled (one regression across all countries per month, not per country / not LOO). Country contribution = β × gap vs Germany relative to the cross-country average gap.
 - Caveat: AMECO is latest vintage, so the backtest has look-ahead.

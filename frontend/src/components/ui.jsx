@@ -62,8 +62,8 @@ export function Tip({ active, payload, label, digits = 2, unit = "" }) {
 }
 
 export function Status({ state, what }) {
-  if (state.error) return <div className="info"><b>Kunde inte ladda {what}.</b> Kör <code>scripts/build_data.py</code>.</div>;
-  return <div className="loading">Laddar {what}…</div>;
+  if (state.error) return <div className="info"><b>Could not load {what}.</b> Run <code>scripts/build_data.py</code>.</div>;
+  return <div className="loading">Loading {what}…</div>;
 }
 
 export class ErrorBoundary extends Component {
@@ -75,9 +75,9 @@ export class ErrorBoundary extends Component {
     if (!this.state.error) return this.props.children;
     return (
       <div className="info">
-        <b>Fel vid rendering</b>
+        <b>Render error</b>
         <pre>{this.state.error.message}</pre>
-        <button className="btn" onClick={() => this.setState({ error: null })}>Försök igen</button>
+        <button className="btn" onClick={() => this.setState({ error: null })}>Retry</button>
       </div>
     );
   }

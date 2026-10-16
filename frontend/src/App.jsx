@@ -48,7 +48,7 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="clock">{now.toLocaleString("sv-SE")}</div>
+        <div className="clock">{now.toLocaleString("en-GB")}</div>
       </header>
       <main className="page">
         <ErrorBoundary key={active}>

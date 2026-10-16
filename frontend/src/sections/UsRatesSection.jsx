@@ -9,9 +9,9 @@ const STATS = [
 ];
 const PANELS = [
   { title: "TREASURY YIELDS (%)", lines: [["DGS2", "2Y"], ["DGS10", "10Y"], ["DGS30", "30Y"], ["DFII10", "TIPS 10Y"]] },
-  { title: "KURVLUTNING (PP)", lines: [["T10Y2Y", "10Y−2Y"], ["T10Y3M", "10Y−3M"]], zero: true },
-  { title: "INFLATIONSFÖRVÄNTNINGAR (%)", lines: [["T10YIE", "Breakeven 10Y"], ["T5YIFR", "5Y5Y fwd"]] },
-  { title: "KREDITSPREADAR (%)", lines: [["BAMLC0A0CM", "IG OAS"], ["BAMLH0A0HYM2", "HY OAS"]] },
+  { title: "CURVE SLOPE (PP)", lines: [["T10Y2Y", "10Y−2Y"], ["T10Y3M", "10Y−3M"]], zero: true },
+  { title: "INFLATION EXPECTATIONS (%)", lines: [["T10YIE", "Breakeven 10Y"], ["T5YIFR", "5Y5Y fwd"]] },
+  { title: "CREDIT SPREADS (%)", lines: [["BAMLC0A0CM", "IG OAS"], ["BAMLH0A0HYM2", "HY OAS"]] },
 ];
 const RANGES = [{ id: 3, label: "3Y" }, { id: 10, label: "10Y" }, { id: 99, label: "MAX" }];
 
@@ -28,7 +28,7 @@ export default function UsRatesSection() {
     return h.filter((r) => new Date(r.date) >= cut);
   }, [state.data, years]);
 
-  if (!state.data) return <Status state={state} what="US-räntor" />;
+  if (!state.data) return <Status state={state} what="US rates" />;
   const { latest, curve } = state.data;
   const byId = Object.fromEntries(latest.map((r) => [r.series_id, r]));
   const xt = ticks(history);
@@ -36,8 +36,8 @@ export default function UsRatesSection() {
   return (
     <div>
       <div className="section-head">
-        <h2>US RATES <span className="muted">| Treasuries, TIPS, inflation & kredit</span></h2>
-        <div className="muted">Källa: FRED · senaste obs {byId.DGS10?.date}</div>
+        <h2>US RATES <span className="muted">| Treasuries, TIPS, inflation & credit</span></h2>
+        <div className="muted">Source: FRED · latest obs {byId.DGS10?.date}</div>
       </div>
 
       <div className="stats">
@@ -48,7 +48,7 @@ export default function UsRatesSection() {
 
       <div className="grid">
         <Card
-          title={`${kind === "nominal" ? "NOMINELL" : "REAL (TIPS)"} KURVA`}
+          title={`${kind === "nominal" ? "NOMINAL" : "REAL (TIPS)"} CURVE`}
           right={<Toggle value={kind} onChange={setKind} options={[{ id: "nominal", label: "NOM" }, { id: "tips", label: "TIPS" }]} />}
         >
           <ResponsiveContainer width="100%" height={300}>
@@ -57,16 +57,16 @@ export default function UsRatesSection() {
               <XAxis dataKey="tenor" type="number" ticks={curve[kind].map((r) => r.tenor)} {...axis} unit="Y" />
               <YAxis {...axis} width={40} domain={["auto", "auto"]} />
               <Tooltip content={<Tip unit="%" />} labelFormatter={(t) => `${t}Y`} />
-              <Line dataKey="now" name="Nu" stroke={COLORS[0]} strokeWidth={2.5} />
+              <Line dataKey="now" name="Now" stroke={COLORS[0]} strokeWidth={2.5} />
               <Line dataKey="m1" name="−1M" stroke={COLORS[1]} strokeDasharray="4 3" />
               <Line dataKey="y1" name="−1Y" stroke={COLORS[8]} strokeDasharray="2 3" />
             </LineChart>
           </ResponsiveContainer>
         </Card>
 
-        <Card title="FÖRÄNDRING (BP)">
+        <Card title="CHANGE (BP)">
           <table className="table">
-            <thead><tr><th>Serie</th><th>Nivå</th><th>1D</th><th>1M</th><th>1Y</th></tr></thead>
+            <thead><tr><th>Series</th><th>Level</th><th>1D</th><th>1M</th><th>1Y</th></tr></thead>
             <tbody>
               {latest.map((r) => (
                 <tr key={r.series_id}>

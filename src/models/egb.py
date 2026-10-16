@@ -6,7 +6,7 @@ spread_it (bp vs Bund) = FE_t + b_t · [debt, fiscal, ca]_it (relative to DE) + 
 - Yields: FRED 10Y (monthly), fundamentals: AMECO (annual, % GDP).
 - Fundamentals are 12M-forward: month m blends year t and t+1 with weight m/12.
 - Betas from a rolling pooled OLS with month fixed effects (cross-sectional RV).
-- Residual > 0 -> cheap vs fundamentals, < 0 -> rich.
+- Residual > 0 -> cheap vs fundamentals, < 0 -> rich. z = residual / own rolling residual vol.
 """
 
 from pathlib import Path
@@ -92,25 +92,30 @@ def run_model(window: int = 36, z_window: int = 36, horizon: int = 3) -> tuple[p
     """
     Returns (model, betas).
 
-    model: date | country | yield | spread | debt | fiscal | ca | fair | residual | z | fwd_chg
+    model: date | country | yield | spread | debt | fiscal | ca
+           | base | c_debt | c_fiscal | c_ca | fair | residual | z | fwd_chg
+
+    fair = base (cross-country avg spread) + sum(c_f), c_f = b_f * (f - avg f).
+    Betas are pooled: identical for all countries on a given date.
     """
     s = load_spreads()
     panel = s.join(load_fundamentals(s["date"]), on=["date", "country"]).drop_nulls()
     betas = rolling_betas(panel, window)
 
-    explained = pl.sum_horizontal(
-        (pl.col(f) - pl.col(f).mean().over("date")) * pl.col(f"b_{f}") for f in FACTORS
-    )
     roll = dict(window_size=z_window, min_samples=12)
 
     model = (
         panel.join(betas, on="date")
-        .with_columns((pl.col("spread").mean().over("date") + explained).alias("fair"))
+        .with_columns(
+            pl.col("spread").mean().over("date").alias("base"),
+            *(((pl.col(f) - pl.col(f).mean().over("date")) * pl.col(f"b_{f}")).alias(f"c_{f}") for f in FACTORS),
+        )
+        .with_columns((pl.col("base") + pl.sum_horizontal(f"c_{f}" for f in FACTORS)).alias("fair"))
         .with_columns((pl.col("spread") - pl.col("fair")).alias("residual"))
         .sort("country", "date")
         .with_columns(
-            ((pl.col("residual") - pl.col("residual").rolling_mean(**roll))
-             / pl.col("residual").rolling_std(**roll)).over("country").alias("z"),
+            # sign matches the residual (above/below fair), scaled by the country's own residual vol
+            (pl.col("residual") / pl.col("residual").rolling_std(**roll)).over("country").alias("z"),
             (pl.col("spread").shift(-horizon) - pl.col("spread")).over("country").alias("fwd_chg"),
         )
         .drop(f"b_{f}" for f in FACTORS)
@@ -119,16 +124,18 @@ def run_model(window: int = 36, z_window: int = 36, horizon: int = 3) -> tuple[p
 
 
 def snapshot(model: pl.DataFrame) -> pl.DataFrame:
-    """Latest observation per country, ranked cheap -> rich."""
+    """Latest date with all countries observed, ranked cheap -> rich."""
+    n = model["country"].n_unique()
+    full = model.group_by("date").len().filter(pl.col("len") == n)["date"].max()
     return (
-        model.filter(pl.col("date") == pl.col("date").max().over("country"))
-        .filter(pl.col("country") != BENCH)
+        model.filter(pl.col("date") == full, pl.col("country") != BENCH)
         .with_columns(
             pl.when(pl.col("z") > 1).then(pl.lit("CHEAP"))
             .when(pl.col("z") < -1).then(pl.lit("RICH"))
             .otherwise(pl.lit("FAIR")).alias("signal")
         )
-        .select("country", "date", "yield", "spread", "fair", "residual", "z", "signal", *FACTORS)
+        .select("country", "date", "yield", "spread", "fair", "residual", "z", "signal",
+                *FACTORS, "base", *(f"c_{f}" for f in FACTORS))
         .sort("z", descending=True, nulls_last=True)
     )
 
