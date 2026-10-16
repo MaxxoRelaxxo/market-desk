@@ -4,6 +4,7 @@ Daily 10Y euro government bond yields.
 - Riksbank SWEA: Observations/{CC}GVB10Y/{from} (same call pattern as markets-data-hub).
   Euro 10Y series available in SWEA: DE, FI, FR, NL.
 - Banca d'Italia: BTP 10Y benchmark (cube BMK0200).
+- Banco de España: 10Y Bono (D_G0B1F0ZP), listaSeries API, one calendar year per call.
 
 Output: src/data/egb_daily.parquet  ->  date | country | yield | source
 """
@@ -29,6 +30,8 @@ BDI_URL = (
     "export/EN/CSV/DATA/CUBE/BANKITALIA/DIFF/BMK0200"
 )
 BDI_SERIES = "MFN_BMK.D.020.922.0.EUR.210"
+BDE_URL = "https://app.bde.es/bierest/resources/srdatosapp/listaSeries"
+BDE_SERIES = "D_G0B1F0ZP"
 
 ISO2 = {
     "Austria": "AT", "Belgium": "BE", "Finland": "FI", "France": "FR", "Germany": "DE",
@@ -158,13 +161,55 @@ def fetch_bdi(series: str = BDI_SERIES) -> pl.DataFrame:
 
 
 # ============================================================
+# BANCO DE ESPAÑA
+# ============================================================
+
+def fetch_bde(series: str = BDE_SERIES, start_year: int = 2000) -> pl.DataFrame:
+    """
+    Daily series allow rango = 3M/12M/36M or a calendar year -> loop over years.
+
+    Response: [{"serie": ..., "fechas": [...], "valores": [...]}] or {"errNum": ...} per series.
+    """
+    headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
+    dates, values = [], []
+    for year in range(start_year, time.localtime().tm_year + 1):
+        r = requests.get(BDE_URL, params={"idioma": "en", "series": series, "rango": str(year)},
+                         headers=headers, timeout=60)
+        r.raise_for_status()
+        res = r.json()
+        s = res[0] if isinstance(res, list) else res
+        if s.get("errNum") is not None or not s.get("fechas"):
+            continue  # no data that year
+        dates += s["fechas"]
+        values += [None if v is None else float(v) for v in s["valores"]]
+
+    print(f"  BdE {series}: {len(dates)} rows")
+    return (
+        pl.DataFrame({"date": dates, "yield": values}, schema={"date": pl.String, "yield": pl.Float64})
+        .select(
+            pl.col("date").str.slice(0, 10).str.to_date(),
+            pl.lit("ES").alias("country"),
+            "yield",
+            pl.lit(f"Banco de España {series}").alias("source"),
+        )
+        .drop_nulls()
+        .unique("date")
+    )
+
+
+# ============================================================
 # SAVE
 # ============================================================
 
 def save_daily_parquet(start: str = "2000-01-01") -> Path:
     """Fetch all daily sources. One failing source does not stop the others."""
     frames = []
-    for name, fetch in [("Riksbank", lambda: fetch_swea(start)), ("Banca d'Italia", fetch_bdi)]:
+    sources = [
+        ("Riksbank", lambda: fetch_swea(start)),
+        ("Banca d'Italia", fetch_bdi),
+        ("Banco de España", lambda: fetch_bde(start_year=int(start[:4]))),
+    ]
+    for name, fetch in sources:
         try:
             df = fetch()
             print(f"{name}: {df['country'].unique().sort().to_list()} ({df.height} rows)")

@@ -20,7 +20,7 @@ from assets.daily_yields import ISO2
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 BENCH = "DE"
-# 5 countries (DE, FI, FR, NL, IT) -> 4 demeaned obs per day: keep k small or the fit is exact.
+# 6 countries (DE, FI, FR, NL, IT, ES) -> 5 demeaned obs per day: keep k small or the fit is near-exact.
 # Add "ca" back when more countries have a daily source.
 FACTORS = ["debt", "fiscal"]
 NAMES = {iso: name for name, iso in ISO2.items()}
