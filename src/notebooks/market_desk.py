@@ -365,5 +365,59 @@ def _(curve_date, curve_type, mo, yield_curve_chart):
     return
 
 
+@app.cell
+def _(pl):
+    ### Sweden data ###
+    svea_dict = {
+        "SEKAUDPMI" : "AUD/SEK",
+        "SEKCADPMI" : "CAD/SEK",
+        "SEKUSDPMI" : "USD/SEK",
+        "SEKEURPMI" : "EUR/SEK",
+        "SEKNOKPMI" : "NOK/SEK",
+        "SEKCHFPMI" : "CHF/SEK",
+        "SEKNZDPMI" : "NZD/SEK",
+        "SEKGBPPMI" : "GBP/SEK",
+        "SEKJPYPMI" : "JPY/SEK",
+        "SECBREPOEFF" : "Policy Rate",
+        "SEGVB2YC" : "Swedish Government Bond 2Y",
+        "SEGVB5YC" : "Swedish Government Bond 5Y",
+        "SEGVB7YC" : "Swedish Government Bond 7Y",
+        "SEGVB10YC" : "Swedish Government Bond 10Y",
+        "SEKKIX92" : "KIX-index",
+        "SETB1MBENCH" : "Swedish Treasury Bill maturity 1m",
+        "SETB3MBENCH" : "Swedish Treasury Bill maturity 3m",
+        "SETB6MBENCH" : "Swedish Treasury Bill maturity 6m",
+        "SETB12MBENCH" : "Swedish Treasury Bill maturity 1y",
+    }
+
+    s, v = pl.col("series"), pl.col("value")
+
+    def add_spread(df: pl.DataFrame) -> pl.DataFrame:
+        spread = (
+            df.group_by("date")
+            .agg((
+                (v.filter(s == "Swedish Government Bond 10Y").first()
+                 - v.filter(s == "Swedish Government Bond 2Y").first()).alias("value")
+            ) * 100)
+            .drop_nulls()
+            .with_columns(
+                series_id=pl.lit("SGB10Y2Y"),
+                source=pl.lit("calc"),
+                series=pl.lit("SGB Spread 10Y-2Y"),
+            )
+            .select(df.columns)
+        )
+        return pl.concat([df, spread])
+
+    svea = (
+        pl.read_parquet("src/data/svea_series.parquet")
+        .with_columns(pl.col.series_id.replace(svea_dict).alias("series"))
+        .pipe(add_spread)
+        .sort("series", "date")
+    )
+    svea
+    return
+
+
 if __name__ == "__main__":
     app.run()

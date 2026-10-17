@@ -9,7 +9,7 @@ PYTHONPATH=src uv run python -c "from assets.ameco import inspect_ameco; print(i
 
 
 To start Marimo:
-uv run marimo edit src/notebooks/fred.py
+uv run marimo edit src/notebooks/market_desk.py
 
 ## Market Desk (frontend)
 
