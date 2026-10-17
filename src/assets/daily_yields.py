@@ -263,6 +263,38 @@ def fetch_nbb(countries: list[str] = NBB_COUNTRIES, start: str = "2000-01-01") -
 
 
 # ============================================================
+# EURO CURVES (curve analysis): SWEA {CC}GVB{2Y,5Y}; 10Y is in egb_daily.parquet
+# ============================================================
+
+CURVE_TENORS = ["2Y", "5Y"]
+
+
+def save_curves_parquet(start: str = "2000-01-01") -> Path:
+    """date | country | tenor | yield -> src/data/egb_curves.parquet. Missing series are skipped."""
+    path = DATA_DIR / "egb_curves.parquet"
+    frames = []
+    for country in SWEA_COUNTRIES:
+        for tenor in CURVE_TENORS:
+            series_id = f"{country}GVB{tenor}"
+            try:
+                obs = get_swea_series(series_id, start)
+            except Exception as e:  # noqa: BLE001
+                print(f"  SWEA {series_id}: failed ({e})")
+                continue
+            print(f"  SWEA {series_id}: {len(obs)} rows")
+            if obs:
+                frames.append(pl.DataFrame(obs).select(
+                    pl.col("date").str.to_date(), pl.lit(country).alias("country"), pl.lit(tenor).alias("tenor"),
+                    pl.col("value").cast(pl.Float64).alias("yield"),
+                ))
+    if not frames:
+        raise RuntimeError("No euro curve series fetched")
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    pl.concat(frames).sort("country", "tenor", "date").write_parquet(path)
+    return path
+
+
+# ============================================================
 # SAVE
 # ============================================================
 

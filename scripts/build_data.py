@@ -85,13 +85,6 @@ def build_us_rates() -> None:
     curve_ids = [*NOMINAL, *TIPS]
     latest = _latest(df, curve_ids, US_LABELS)  # nominal + TIPS only, curve order
 
-    curve_history = (  # daily, wide: date | DGS2 ... DFII30
-        df.filter(pl.col("series_id").is_in(curve_ids))
-        .pivot(on="series_id", index="date", values="value")
-        .select("date", *curve_ids)
-        .sort("date")
-    )
-
     history = (  # weekly, last obs
         df.filter(pl.col("series_id").is_in(US_HISTORY))
         .group_by_dynamic("date", every="1w", group_by="series_id").agg(pl.col("value").last())
@@ -101,8 +94,6 @@ def build_us_rates() -> None:
 
     _dump({
         "latest": _records(latest, 3),
-        "tenors": {"nominal": NOMINAL, "tips": TIPS},
-        "curve_history": _records(curve_history, 3),
         "history": _records(history, 3),
     }, "us_rates.json")
 
@@ -167,28 +158,22 @@ def build_egb() -> None:
 # SWEDISH RATES + ACM TERM PREMIUM
 # ============================================================
 
-SE_LABELS = {
-    "SECBREPOEFF": "Policy rate", "SETB1MBENCHC": "T-bill 1M", "SETB3MBENCH": "T-bill 3M",
-    "SETB6MBENCH": "T-bill 6M", "SEGVB2YC": "SGB 2Y", "SEGVB5YC": "SGB 5Y", "SEGVB7YC": "SGB 7Y",
-    "SEGVB10YC": "SGB 10Y",
-}
+SGB = {"SEGVB2YC": 2, "SEGVB5YC": 5, "SEGVB7YC": 7, "SEGVB10YC": 10}
+SE_LABELS = {sid: f"SGB {t}Y" for sid, t in SGB.items()}
+
+
+def _svea(ids) -> pl.DataFrame:
+    return pl.read_parquet(DATA_DIR / "svea_series.parquet").filter(pl.col("series_id").is_in(ids)).drop_nulls("value")
 
 
 def build_se_rates() -> None:
-    wide = acm.load_wide().drop(acm.SHORT_PROXY, strict=False)
-    df = (
-        pl.read_parquet(DATA_DIR / "svea_series.parquet").filter(pl.col("series_id") == acm.SHORT_PROXY)
-        .select("date", "series_id", "value")
-        .vstack(wide.unpivot(index="date", variable_name="series_id").drop_nulls("value"))
-    )
-    curve_ids = [acm.COLS[m] for m in sorted(acm.COLS)]
-    curve_history = wide.select("date", *curve_ids).with_columns(pl.col(curve_ids).forward_fill()).drop_nulls()
+    df = _svea(list(SGB)).select("date", "series_id", "value")
     history = (
         df.sort("series_id", "date")
         .group_by_dynamic("date", every="1w", group_by="series_id").agg(pl.col("value").last())
         .pivot(on="series_id", index="date", values="value").sort("date")
         .with_columns(((pl.col("SEGVB10YC") - pl.col("SEGVB2YC")) * 100).alias("s2s10"),
-                      ((pl.col("SEGVB2YC") - pl.col("SECBREPOEFF")) * 100).alias("s2_policy"))
+                      ((pl.col("SEGVB10YC") - pl.col("SEGVB5YC")) * 100).alias("s5s10"))
     )
 
     out, dates, Y, mats = acm.run()
@@ -198,9 +183,7 @@ def build_se_rates() -> None:
     y1 = decomp.filter(pl.col("date") <= pl.col("date").max().dt.offset_by("-1y")).row(-1, named=True)
 
     _dump({
-        "latest": _records(_latest(df, list(SE_LABELS), SE_LABELS), 3),
-        "tenors": {sid: m / 12 for m, sid in acm.COLS.items()},
-        "curve_history": _records(curve_history, 3),
+        "latest": _records(_latest(df, list(SGB), SE_LABELS), 3),
         "history": _records(history, 3),
         "acm": {
             "k": acm.K, "n_obs": len(dates), "start": decomp["date"].min(), "asof": last["date"],
@@ -213,7 +196,40 @@ def build_se_rates() -> None:
     }, "se_rates.json")
 
 
-THEMES = {"us_rates": build_us_rates, "egb": build_egb, "se_rates": build_se_rates}
+# ============================================================
+# GOVERNMENT CURVES (curve analysis): Sweden, euro area, US
+# ============================================================
+
+def build_curves() -> None:
+    """{country: {name, tenors: {tenor: years}, history: daily wide date | <tenor>...}}, order SE, EA, US."""
+    tenor = lambda t: int(t.rstrip("Y"))  # noqa: E731
+    long = [
+        ("SE", "Sweden", _svea(list(SGB)).select(
+            "date", pl.col("series_id").replace_strict({s: f"{t}Y" for s, t in SGB.items()}).alias("tenor"), "value")),
+    ]
+    curves = DATA_DIR / "egb_curves.parquet"
+    if curves.exists():
+        ea = pl.concat([
+            pl.read_parquet(curves).rename({"yield": "value"}),
+            pl.read_parquet(DATA_DIR / "egb_daily.parquet").select(
+                "date", "country", pl.lit("10Y").alias("tenor"), pl.col("yield").alias("value")),
+        ])
+        long += [(c, egb.NAMES[c], g.drop("country"))
+                 for (c,), g in ea.group_by("country", maintain_order=True) if g["tenor"].n_unique() > 1]
+    us = pl.read_parquet(DATA_DIR / "us_rates.parquet").filter(pl.col("series_id").is_in(list(NOMINAL)))
+    long.append(("US", "United States", us.select(
+        "date", pl.col("series_id").replace_strict({s: f"{t}Y" for s, t in NOMINAL.items()}).alias("tenor"), "value")))
+
+    out = {}
+    for code, name, df in long:
+        tenors = sorted(df["tenor"].unique(), key=tenor)
+        wide = (df.drop_nulls("value").pivot(on="tenor", index="date", values="value").sort("date")
+                .select("date", *tenors).with_columns(pl.col(tenors).forward_fill()).drop_nulls())
+        out[code] = {"name": name, "tenors": {t: tenor(t) for t in tenors}, "history": _records(wide, 3)}
+    _dump(out, "curves.json")
+
+
+THEMES = {"us_rates": build_us_rates, "egb": build_egb, "se_rates": build_se_rates, "curves": build_curves}
 
 
 if __name__ == "__main__":

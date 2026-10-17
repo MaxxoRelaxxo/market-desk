@@ -32,7 +32,8 @@ NAMES = {iso: name for name, iso in ISO2.items()}
 LAG_DAYS = 120  # AMECO year Y used from (Y+1)-01-01 + LAG_DAYS
 Z_WINDOW = 520  # 104 weeks of business days
 HORIZON = 63    # ~3M, backtest
-MAX_GAP = 10    # forward-fill holidays / lagging sources (Banca d'Italia snapshot) up to this many business days
+MAX_GAP = 10    # carry the last spread over holidays / lagging sources (Banca d'Italia) up to this many business days
+LAGGING = {"BE": 90}  # NBB publishes the daily series with a lag of up to a quarter
 RECENT = 20     # business days: full cross-section = max country count over this window
 
 
@@ -45,27 +46,26 @@ def load_spreads() -> pl.DataFrame:
     """
     date | country | yield | obs_date | spread (bp vs Bund)
 
-    Business-day grid on Bund dates; each country forward-filled up to MAX_GAP days.
+    Business-day grid on Bund dates. Spread is measured on the country's own obs date and carried forward
+    up to MAX_GAP business days (LAGGING per country); yield = Bund + carried spread.
     Unbalanced: a country enters when its series starts and drops out over longer gaps.
     """
     y = pl.read_parquet(DATA_DIR / "egb_daily.parquet").select("date", "country", "yield").drop_nulls()
-    if y.filter(pl.col("country") == BENCH).is_empty():
+    bund = y.filter(pl.col("country") == BENCH).select("date", pl.col("yield").alias("bund"))
+    if bund.is_empty():
         raise ValueError(f"No daily {BENCH} yield in egb_daily.parquet")
 
-    dates = y.filter(pl.col("country") == BENCH).select("date").unique()
-    panel = (
-        dates.join(y.select("country").unique(), how="cross")
-        .join(y.with_columns(pl.col("date").alias("obs_date")), on=["date", "country"], how="left")
-        .sort("country", "date")
-        .with_columns(pl.col("yield", "obs_date").forward_fill(limit=MAX_GAP).over("country"))
-    )
-    bund = panel.filter(pl.col("country") == BENCH).select("date", pl.col("yield").alias("bund"))
-
+    obs = y.join(bund, on="date").select(
+        "date", "country", pl.col("date").alias("obs_date"), ((pl.col("yield") - pl.col("bund")) * 100).alias("spread"))
     return (
-        panel.join(bund, on="date")
-        .with_columns(((pl.col("yield") - pl.col("bund")) * 100).alias("spread"))
-        .drop("bund")
-        .drop_nulls("spread")
+        bund.join(y.select("country").unique(), how="cross")
+        .join(obs, on=["date", "country"], how="left")
+        .sort("country", "date")
+        .with_columns(pl.int_range(pl.len()).over("country").alias("i"))
+        .with_columns(pl.when(pl.col("obs_date").is_not_null()).then("i").alias("i_obs"))
+        .with_columns(pl.col("spread", "obs_date", "i_obs").forward_fill().over("country"))
+        .filter(pl.col("i") - pl.col("i_obs") <= pl.col("country").replace_strict(LAGGING, default=MAX_GAP))
+        .select("date", "country", (pl.col("bund") + pl.col("spread") / 100).alias("yield"), "obs_date", "spread")
         .sort("country", "date")
     )
 

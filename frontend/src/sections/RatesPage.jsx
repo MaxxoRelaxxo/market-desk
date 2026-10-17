@@ -16,11 +16,12 @@ const US_SHORT = {
 const CHANGES = [["chg_prev", "1D"], ["chg_w1", "1W"], ["chg_m1", "1M"], ["chg_y1", "1Y"]];
 const RANGES = [{ id: 3, label: "3Y" }, { id: 10, label: "10Y" }, { id: 99, label: "MAX" }];
 const PANELS = [
-  { src: "se", title: "SWEDEN · SGB & POLICY RATE (%)", lines: [["SECBREPOEFF", "Policy"], ["SEGVB2YC", "2Y"], ["SEGVB5YC", "5Y"], ["SEGVB10YC", "10Y"]] },
-  { src: "us", title: "US · TREASURY YIELDS (%)", lines: [["DGS2", "2Y"], ["DGS10", "10Y"], ["DGS30", "30Y"], ["DFII10", "TIPS 10Y"]] },
-  { src: "se", title: "SWEDEN · CURVE (BP)", lines: [["s2s10", "10Y−2Y"], ["s2_policy", "2Y−policy"]], zero: true },
-  { src: "us", title: "US · CURVE (BP)", lines: [["T10Y2Y", "10Y−2Y"], ["T10Y3M", "10Y−3M"]], zero: true, mult: 100 },
+  { src: "se", title: "SWEDEN · SGB YIELDS (%)", lines: [["SEGVB2YC", "2Y"], ["SEGVB5YC", "5Y"], ["SEGVB7YC", "7Y"], ["SEGVB10YC", "10Y"]] },
+  { src: "se", title: "SWEDEN · CURVE (BP)", lines: [["s2s10", "10Y−2Y"], ["s5s10", "10Y−5Y"]], zero: true },
   { src: "egb", title: "EURO AREA · 10Y YIELDS (%)", span: 2 },
+  { src: "us", title: "US · TREASURY NOMINAL (%)", lines: [["DGS2", "2Y"], ["DGS10", "10Y"], ["DGS30", "30Y"]] },
+  { src: "us", title: "US · TIPS REAL (%)", lines: [["DFII10", "10Y"]] },
+  { src: "us", title: "US · CURVE (BP)", lines: [["T10Y2Y", "10Y−2Y"], ["T10Y3M", "10Y−3M"]], zero: true, mult: 100 },
   { src: "us", title: "US · INFLATION EXPECTATIONS (%)", lines: [["T10YIE", "Breakeven 10Y"], ["T5YIFR", "5Y5Y fwd"]] },
   { src: "us", title: "US · CREDIT SPREADS (%)", lines: [["BAMLC0A0CM", "IG OAS"], ["BAMLH0A0HYM2", "HY OAS"]] },
 ];
@@ -63,12 +64,12 @@ function Block({ id, title, sub, right, children }) {
 function Overview({ se, us, egb }) {
   const markets = [
     ["SWEDEN", se?.latest, (r) => r.label],
-    ["UNITED STATES", us?.latest, (r) => US_SHORT[r.series_id]],
     ["EURO AREA 10Y", egb?.yields_latest, (r) => r.label],
+    ["UNITED STATES", us?.latest, (r) => US_SHORT[r.series_id]],
   ].filter(([, rows]) => rows);
 
   return (
-    <Block id="overview" title="RATES" sub="Sweden · US · Euro area">
+    <Block id="overview" title="RATES" sub="Sweden · Euro area · US">
       {markets.map(([m, rows, label]) => (
         <div key={m}>
           <div className="stats-label">{m}</div>
@@ -163,20 +164,15 @@ function Development({ se, us, egb }) {
 
 // ============================================================ CURVE ANALYSIS
 
-function CurveAnalysis({ se, us }) {
-  const markets = [
-    se && { id: "se", label: "SGB", title: "SWEDEN · T-BILLS & SGB", ch: se.curve_history, tenors: se.tenors },
-    us && { id: "us", label: "UST", title: "US · TREASURY NOMINAL", ch: us.curve_history, tenors: us.tenors.nominal },
-    us && { id: "tips", label: "TIPS", title: "US · TIPS REAL", ch: us.curve_history, tenors: us.tenors.tips },
-  ].filter(Boolean);
-  const [mkt, setMkt] = useState(markets[0]?.id);
+function CurveAnalysis({ curves }) {
+  const codes = Object.keys(curves ?? {});
+  const [code, setCode] = useState(codes[0]);
   const [dates, setDates] = useState(null);
   const [draft, setDraft] = useState("");
-  const c = markets.find((x) => x.id === mkt) ?? markets[0];
+  const c = curves?.[code] ?? curves?.[codes[0]];
   if (!c) return null;
-
   const tenors = Object.entries(c.tenors);
-  const ch = c.ch.filter((r) => tenors.some(([id]) => r[id] != null));
+  const ch = c.history;
   const last = ch[ch.length - 1];
   const compare = dates ?? [shift(last.date, { months: 1 }), shift(last.date, { years: 1 })];
   const rows = compare.map((iso) => ({ iso, row: asOf(ch, iso) })).filter((x) => x.row);
@@ -191,10 +187,10 @@ function CurveAnalysis({ se, us }) {
 
   // Spreads/fly on the curve's own points, latest vs comparison dates
   const pts = curve.map((x) => x.tenor);
-  const lo = pts.includes(2) ? 2 : pts[0], hi = Math.max(...pts), mid = pts.includes(5) ? 5 : null;
+  const lo = pts[0], hi = Math.max(...pts), mid = pts.includes(5) ? 5 : null, ten = pts.includes(10) ? 10 : hi;
   const shape = (get) => ({
     slope: (get(hi) - get(lo)) * 100,
-    fly: mid != null ? (2 * get(mid) - get(lo) - get(hi)) * 100 : null,
+    fly: mid != null ? (2 * get(mid) - get(lo) - get(ten)) * 100 : null,
   });
   const shapeRows = [
     { label: `Latest ${last.date}`, ...shape(at) },
@@ -202,10 +198,14 @@ function CurveAnalysis({ se, us }) {
   ];
 
   return (
-    <Block id="curve" title="CURVE ANALYSIS" sub="latest vs dates"
-      right={<Toggle value={c.id} onChange={setMkt} options={markets.map(({ id, label }) => ({ id, label }))} />}>
+    <Block id="curve" title="CURVE ANALYSIS" sub="government bonds · latest vs dates"
+      right={
+        <select className="select" value={code} onChange={(e) => setCode(e.target.value)}>
+          {codes.map((k) => <option key={k} value={k}>{curves[k].name}</option>)}
+        </select>
+      }>
       <div className="grid">
-        <Card title={`${c.title} (%)`}>
+        <Card title={`${c.name.toUpperCase()} · GOVERNMENT CURVE (%)`}>
           <div className="date-bar">
             <input type="date" className="select" value={draft} max={last.date} min={ch[0].date}
               onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
@@ -233,7 +233,7 @@ function CurveAnalysis({ se, us }) {
         </Card>
 
         <Card title="CHANGE VS DATES (BP)"
-          note={`Slope = ${tenorLabel(hi)} − ${tenorLabel(lo)}${mid != null ? `, fly = 2·${tenorLabel(mid)} − ${tenorLabel(lo)} − ${tenorLabel(hi)}` : ""}. Δ > 0 = steeper / cheaper belly.`}>
+          note={`Slope = ${tenorLabel(hi)} − ${tenorLabel(lo)}${mid != null ? `, fly = 2·${tenorLabel(mid)} − ${tenorLabel(lo)} − ${tenorLabel(ten)}` : ""}. Δ > 0 = steeper / cheaper belly.`}>
           <div className="table-wrap"><table className="table">
             <thead>
               <tr>
@@ -359,9 +359,10 @@ export default function RatesPage() {
   const se = useData("se_rates.json");
   const us = useData("us_rates.json");
   const egb = useData("egb.json");
-  const states = [[se, "Swedish rates"], [us, "US rates"], [egb, "EGB data"]];
+  const curves = useData("curves.json");
+  const states = [[se, "Swedish rates"], [egb, "EGB data"], [us, "US rates"], [curves, "curves"]];
   if (states.every(([s]) => !s.data)) return <Status state={se.error ? se : us} what="rates" />;
-  const args = { se: se.data, us: us.data, egb: egb.data };
+  const args = { se: se.data, us: us.data, egb: egb.data, curves: curves.data };
 
   return (
     <div>

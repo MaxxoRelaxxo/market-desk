@@ -43,6 +43,9 @@ jobs:
       - name: Daily yields
         continue-on-error: true
         run: uv run python -c "from assets.daily_yields import save_daily_parquet; save_daily_parquet()"
+      - name: Euro curves (SWEA)
+        continue-on-error: true
+        run: uv run python -c "from assets.daily_yields import save_curves_parquet; save_curves_parquet()"
       - name: Swedish rates (SWEA)
         continue-on-error: true
         run: uv run python -c "from assets.swedish_data import save_svea_parquet; save_svea_parquet()"

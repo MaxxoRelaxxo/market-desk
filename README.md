@@ -19,15 +19,17 @@ Same structure as markets-data-hub: Python/Polars → `scripts/build_data.py` �
 PYTHONPATH=src uv run python -c "from assets.fred import save_fred_parquet; save_fred_parquet()"
 PYTHONPATH=src uv run python -c "from assets.ameco import save_ameco_parquet; save_ameco_parquet()"
 PYTHONPATH=src uv run python -c "from assets.daily_yields import save_daily_parquet; print(save_daily_parquet())"
+PYTHONPATH=src uv run python -c "from assets.daily_yields import save_curves_parquet; save_curves_parquet()"
 PYTHONPATH=src uv run python -c "from assets.swedish_data import save_svea_parquet; save_svea_parquet()"
 uv run python scripts/build_data.py          # all themes, or e.g. `... build_data.py se_rates`
 cd frontend && npm install && npm run dev
 ```
 
 Pages (tabs, F1/F2…): **Rates** (`frontend/src/sections/RatesPage.jsx`), one scrolling page:
-overview tiles + levels/changes/range table (SE, US, euro area 10Y) → weekly development → curve analysis
-(SGB / UST / TIPS vs chosen dates) → EGB relative value → Swedish term premium (ACM).
-Data: `us_rates.json`, `egb.json`, `se_rates.json` (`build_us_rates`, `build_egb`, `build_se_rates`).
+overview tiles + levels/changes/range table (Sweden, euro area 10Y, US) → weekly development → curve analysis
+(government bonds per country vs chosen dates: SGB, UST, euro countries with SWEA 2Y/5Y in `egb_curves.parquet`)
+→ EGB relative value → Swedish term premium (ACM).
+Data: `se_rates.json`, `egb.json`, `us_rates.json`, `curves.json` (`build_se_rates`, `build_egb`, `build_us_rates`, `build_curves`).
 Add a page (FX, Macro): `build_<theme>()` in `scripts/build_data.py` + a component in `frontend/src/sections/` registered in `THEMES` in `App.jsx`.
 
 ### Swedish term premium (ACM 2013, `src/models/acm.py`)
@@ -44,8 +46,9 @@ Term premium = model yield − risk-neutral yield (λ = 0). 1M T-bill (`SETB1MBE
   `RIKSBANK_API_KEY` in `.env`), IT (BTP 10Y) from Banca d'Italia (`MFN_BMK.D.020.922.0.EUR.210`),
   ES (Bono 10Y) from Banco de España (`D_G0B1F0ZP`), BE from the National Bank of Belgium
   (`BE2,DF_IROLOYLD` — long-term yield of the reference loans, 11am).
-- Unbalanced panel: a country enters when its series starts; the snapshot uses the latest date with the full
-  recent cross-section, so a lagging source (Banca d'Italia) does not drop a country from the table.
+- Unbalanced panel: a country enters when its series starts; the spread is measured on the country's own obs date
+  and carried forward up to 10 business days (`MAX_GAP`), Belgium up to 90 (`LAGGING`: NBB publishes with up to a
+  quarter's lag, shown as stale). The snapshot uses the latest date with the full recent cross-section.
 - Fundamentals: AMECO levels (% GDP) of the last full year, used from 120 days after year-end (`LAG_DAYS`).
   TDS (twin deficit score) = −(budget balance + current account) / 2.
 - Regressors scale with the cross-section: debt + TDS from 8 countries (`MIN_N_TWO_FACTORS`), debt only below.
