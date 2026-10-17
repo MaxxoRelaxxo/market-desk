@@ -20,7 +20,7 @@ const PANELS = [
   { src: "se", title: "SWEDEN · CURVE (BP)", lines: [["s2s10", "10Y−2Y"], ["s5s10", "10Y−5Y"]], zero: true },
   { src: "egb", title: "EURO AREA · 10Y YIELDS (%)", span: 2 },
   { src: "us", title: "US · TREASURY NOMINAL (%)", lines: [["DGS2", "2Y"], ["DGS10", "10Y"], ["DGS30", "30Y"]] },
-  { src: "us", title: "US · TIPS REAL (%)", lines: [["DFII10", "10Y"]] },
+  { src: "us", title: "US · TIPS REAL (%)", lines: [["DFII5", "5Y"], ["DFII7", "7Y"], ["DFII10", "10Y"], ["DFII30", "30Y"]] },
   { src: "us", title: "US · CURVE (BP)", lines: [["T10Y2Y", "10Y−2Y"], ["T10Y3M", "10Y−3M"]], zero: true, mult: 100 },
   { src: "us", title: "US · INFLATION EXPECTATIONS (%)", lines: [["T10YIE", "Breakeven 10Y"], ["T5YIFR", "5Y5Y fwd"]] },
   { src: "us", title: "US · CREDIT SPREADS (%)", lines: [["BAMLC0A0CM", "IG OAS"], ["BAMLH0A0HYM2", "HY OAS"]] },

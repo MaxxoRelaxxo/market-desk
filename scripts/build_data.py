@@ -37,7 +37,7 @@ US_LABELS = {sid: name for cat in FRED_SERIES.values() for name, sid in cat.item
 NOMINAL = {"DGS2": 2, "DGS5": 5, "DGS7": 7, "DGS10": 10, "DGS30": 30}
 TIPS = {"DFII5": 5, "DFII7": 7, "DFII10": 10, "DFII30": 30}
 US_HISTORY = [
-    "DGS2", "DGS10", "DGS30", "DFII10", "T10YIE", "T5YIFR",
+    "DGS2", "DGS10", "DGS30", *TIPS, "T10YIE", "T5YIFR",
     "T10Y2Y", "T10Y3M", "BAMLC0A0CM", "BAMLH0A0HYM2", "DFF", "MORTGAGE30US",
 ]
 
