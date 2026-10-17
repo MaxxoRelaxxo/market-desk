@@ -1,24 +1,47 @@
 import { Component } from "react";
 import { fmt } from "../lib";
 
-export function StatCard({ label, value, unit, delta, deltaUnit = "bp", digits = 2 }) {
+export function StatCard({ label, value, unit, delta, deltaUnit = "bp", digits = 2, color, spark }) {
   const cls = delta > 0 ? "up" : delta < 0 ? "down" : "";
+  const c = color ?? (delta > 0 ? "var(--up)" : delta < 0 ? "var(--down)" : undefined);
   return (
-    <div className="stat">
-      <div className="stat-label">{label}</div>
-      <div className="stat-value">
-        {typeof value === "number" ? fmt(value, digits) : value ?? "–"}
-        {unit && <span className="stat-unit">{unit}</span>}
-      </div>
-      {delta != null && (
-        <div className={`stat-delta ${cls}`}>
-          {delta > 0 ? "▲" : delta < 0 ? "▼" : "—"} {delta > 0 ? "+" : ""}
-          {delta.toFixed(1)} {deltaUnit}
+    <div className={`stat ${cls}`} style={c && { "--c": c }}>
+      <div className="stat-body">
+        <div className="stat-label">{label}</div>
+        <div className="stat-value">
+          {typeof value === "number" ? fmt(value, digits) : value ?? "–"}
+          {unit && <span className="stat-unit">{unit}</span>}
         </div>
-      )}
+        {delta != null && (
+          <div className={`stat-delta ${cls}`}>
+            {delta > 0 ? "▲" : delta < 0 ? "▼" : "—"} {delta > 0 ? "+" : ""}
+            {delta.toFixed(1)} {deltaUnit}
+          </div>
+        )}
+      </div>
+      {spark?.length > 1 && <Spark values={spark} color={c ?? "var(--accent)"} />}
     </div>
   );
 }
+
+export function Spark({ values, color, w = 100, h = 34 }) {
+  const lo = Math.min(...values), hi = Math.max(...values), k = hi > lo ? (h - 2) / (hi - lo) : 0;
+  const pts = values.map((v, i) => `${((i * w) / (values.length - 1)).toFixed(1)},${(h - 1 - (v - lo) * k).toFixed(1)}`).join(" ");
+  return (
+    <svg className="spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+const STARS = Array.from({ length: 12 }, (_, i) => [12 + 4.6 * Math.sin((i * Math.PI) / 6), 8 - 4.6 * Math.cos((i * Math.PI) / 6)]);
+const FLAGS = {
+  se: <><rect width="24" height="16" fill="#006AA7" /><rect x="7" width="3" height="16" fill="#FECC02" /><rect y="6.5" width="24" height="3" fill="#FECC02" /></>,
+  eu: <><rect width="24" height="16" fill="#003399" />{STARS.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="0.8" fill="#FFCC00" />)}</>,
+  us: <><rect width="24" height="16" fill="#fff" />{[0, 2, 4, 6, 8, 10, 12].map((i) => <rect key={i} y={(i * 16) / 13} width="24" height={16 / 13} fill="#B22234" />)}<rect width="10" height="8.6" fill="#3C3B6E" /></>,
+};
+
+export const Flag = ({ code }) => <svg className="flag" viewBox="0 0 24 16">{FLAGS[code]}</svg>;
 
 export function Card({ title, note, span = 1, children, right }) {
   return (
