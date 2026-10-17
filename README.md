@@ -49,5 +49,5 @@ Add a theme: one `build_<theme>()` in `scripts/build_data.py` + one component in
 ### Deploy (GitHub Pages)
 
 `.github/workflows/daily.yml` runs daily at 05:00 UTC (and on push to `main` / manually): fetches FRED, AMECO and
-daily yields, commits updated parquet, builds the frontend and deploys to Pages. A failing source keeps its last data.
+daily yields (last good data cached in Actions), builds the frontend and deploys to Pages. A failing source keeps its last data.
 Setup: Settings → Pages → Source: *GitHub Actions*; Settings → Secrets → Actions: `FRED_API_KEY`, `RIKSBANK_API_KEY`.
