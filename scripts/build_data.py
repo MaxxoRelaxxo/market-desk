@@ -11,7 +11,7 @@ import polars as pl
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from models import egb
+from models import acm, egb
 from utils.series import FRED_SERIES
 
 DATA_DIR = ROOT / "src" / "data"
@@ -42,6 +42,39 @@ US_HISTORY = [
 ]
 
 
+def _latest(df: pl.DataFrame, ids: list[str], labels: dict[str, str]) -> pl.DataFrame:
+    """Long df (date | series_id | value) -> level, bp change vs prev obs/1W/1M/1Y, 1Y range, 5Y percentile."""
+    df = df.filter(pl.col("series_id").is_in(ids)).drop_nulls("value").sort("series_id", "date")
+
+    def asof(offset: str) -> pl.DataFrame:
+        cutoff = pl.col("date").max().dt.offset_by(offset)
+        return df.filter(pl.col("date") <= cutoff.over("series_id")).group_by("series_id").agg(pl.col("value").last())
+
+    def since(offset: str) -> pl.DataFrame:
+        return df.filter(pl.col("date") > pl.col("date").max().dt.offset_by(offset).over("series_id"))
+
+    stats = (
+        since("-1y").group_by("series_id").agg(pl.col("value").min().alias("lo_1y"), pl.col("value").max().alias("hi_1y"))
+        .join(since("-5y").group_by("series_id")
+              .agg(((pl.col("value") <= pl.col("value").last()).mean() * 100).alias("pct_5y")), on="series_id")
+    )
+
+    return (
+        df.group_by("series_id")
+        .agg(pl.col("date").last(), pl.col("value").last(), pl.col("value").tail(2).first().alias("prev"))
+        .join(asof("-1w").rename({"value": "w1"}), on="series_id", how="left")
+        .join(asof("-1mo").rename({"value": "m1"}), on="series_id", how="left")
+        .join(asof("-1y").rename({"value": "y1"}), on="series_id", how="left")
+        .join(stats, on="series_id", how="left")
+        .select(
+            "series_id", pl.col("series_id").replace_strict(labels).alias("label"), "date", "value",
+            *(((pl.col("value") - pl.col(c)) * 100).alias(f"chg_{c}") for c in ["prev", "w1", "m1", "y1"]),
+            "lo_1y", "hi_1y", "pct_5y",
+        )
+        .sort(pl.col("series_id").replace_strict({s: i for i, s in enumerate(ids)}))
+    )
+
+
 def build_us_rates() -> None:
     df = (
         pl.read_parquet(DATA_DIR / "us_rates.parquet")
@@ -50,24 +83,7 @@ def build_us_rates() -> None:
         .sort("series_id", "date")
     )
     curve_ids = [*NOMINAL, *TIPS]
-
-    def asof(offset: str) -> pl.DataFrame:
-        cutoff = pl.col("date").max().dt.offset_by(offset)
-        return df.filter(pl.col("date") <= cutoff.over("series_id")).group_by("series_id").agg(pl.col("value").last())
-
-    latest = (  # nominal + TIPS only, curve order
-        df.filter(pl.col("series_id").is_in(curve_ids))
-        .group_by("series_id")
-        .agg(pl.col("date").last(), pl.col("value").last(), pl.col("value").tail(2).first().alias("prev"))
-        .join(asof("-1w").rename({"value": "w1"}), on="series_id", how="left")
-        .join(asof("-1mo").rename({"value": "m1"}), on="series_id", how="left")
-        .join(asof("-1y").rename({"value": "y1"}), on="series_id", how="left")
-        .select(
-            "series_id", pl.col("series_id").replace_strict(US_LABELS).alias("label"), "date", "value",
-            *(((pl.col("value") - pl.col(c)) * 100).alias(f"chg_{c}") for c in ["prev", "w1", "m1", "y1"]),
-        )
-        .sort(pl.col("series_id").replace_strict({s: i for i, s in enumerate(curve_ids)}))
-    )
+    latest = _latest(df, curve_ids, US_LABELS)  # nominal + TIPS only, curve order
 
     curve_history = (  # daily, wide: date | DGS2 ... DFII30
         df.filter(pl.col("series_id").is_in(curve_ids))
@@ -118,8 +134,15 @@ def build_egb() -> None:
         .select("date", pl.col("yield").alias("bund"))
     )
 
+    yields = pl.read_parquet(DATA_DIR / "egb_daily.parquet").select(
+        "date", pl.col("country").alias("series_id"), pl.col("yield").alias("value"))
+    order = [egb.BENCH, *sorted(set(egb.NAMES) & set(yields["series_id"].unique()) - {egb.BENCH})]
+
     _dump({
         "asof": snap["date"].max(),
+        "yields_latest": _records(_latest(yields, order, egb.NAMES), 3),
+        "yields": _records(_weekly(yields, "series_id").pivot(on="series_id", index="date", values="value")
+                           .select("date", *order).sort("date"), 3),
         "factors": factors,
         "all_factors": egb.ALL_FACTORS,
         "min_n_two_factors": egb.MIN_N_TWO_FACTORS,
@@ -140,7 +163,57 @@ def build_egb() -> None:
     }, "egb.json")
 
 
-THEMES = {"us_rates": build_us_rates, "egb": build_egb}
+# ============================================================
+# SWEDISH RATES + ACM TERM PREMIUM
+# ============================================================
+
+SE_LABELS = {
+    "SECBREPOEFF": "Policy rate", "SETB1MBENCHC": "T-bill 1M", "SETB3MBENCH": "T-bill 3M",
+    "SETB6MBENCH": "T-bill 6M", "SEGVB2YC": "SGB 2Y", "SEGVB5YC": "SGB 5Y", "SEGVB7YC": "SGB 7Y",
+    "SEGVB10YC": "SGB 10Y",
+}
+
+
+def build_se_rates() -> None:
+    wide = acm.load_wide().drop(acm.SHORT_PROXY, strict=False)
+    df = (
+        pl.read_parquet(DATA_DIR / "svea_series.parquet").filter(pl.col("series_id") == acm.SHORT_PROXY)
+        .select("date", "series_id", "value")
+        .vstack(wide.unpivot(index="date", variable_name="series_id").drop_nulls("value"))
+    )
+    curve_ids = [acm.COLS[m] for m in sorted(acm.COLS)]
+    curve_history = wide.select("date", *curve_ids).with_columns(pl.col(curve_ids).forward_fill()).drop_nulls()
+    history = (
+        df.sort("series_id", "date")
+        .group_by_dynamic("date", every="1w", group_by="series_id").agg(pl.col("value").last())
+        .pivot(on="series_id", index="date", values="value").sort("date")
+        .with_columns(((pl.col("SEGVB10YC") - pl.col("SEGVB2YC")) * 100).alias("s2s10"),
+                      ((pl.col("SEGVB2YC") - pl.col("SECBREPOEFF")) * 100).alias("s2_policy"))
+    )
+
+    out, dates, Y, mats = acm.run()
+    tp = acm.tp_frame(out, dates)
+    decomp = acm.decomp_frame(out, dates, Y, mats)
+    last = decomp.row(-1, named=True)
+    y1 = decomp.filter(pl.col("date") <= pl.col("date").max().dt.offset_by("-1y")).row(-1, named=True)
+
+    _dump({
+        "latest": _records(_latest(df, list(SE_LABELS), SE_LABELS), 3),
+        "tenors": {sid: m / 12 for m, sid in acm.COLS.items()},
+        "curve_history": _records(curve_history, 3),
+        "history": _records(history, 3),
+        "acm": {
+            "k": acm.K, "n_obs": len(dates), "start": decomp["date"].min(), "asof": last["date"],
+            "latest": last, "y1": y1,
+            "tp_latest": dict(zip(tp.columns[1:], tp.row(-1)[1:])),
+            "decomp": _records(decomp, 3),
+            "tp": _records(tp, 3),
+            "errors": _records(acm.pricing_errors(out, Y, mats), 1),
+        },
+    }, "se_rates.json")
+
+
+THEMES = {"us_rates": build_us_rates, "egb": build_egb, "se_rates": build_se_rates}
 
 
 if __name__ == "__main__":

@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
 import { ErrorBoundary } from "./components/ui";
-import UsRatesSection from "./sections/UsRatesSection";
-import EgbSection from "./sections/EgbSection";
+import RatesPage from "./sections/RatesPage";
 
-// Theme registry: add a section component + a build function in scripts/build_data.py.
+// Theme registry: add a page component + build function(s) in scripts/build_data.py.
 const THEMES = [
-  { id: "egb", key: "F1", label: "EGB SPREADS", Component: EgbSection },
-  { id: "us", key: "F2", label: "US RATES", Component: UsRatesSection },
+  { id: "rates", key: "F1", label: "RATES", Component: RatesPage },
 ];
 
 const initial = () => THEMES.find((t) => t.id === window.location.hash.slice(1))?.id ?? THEMES[0].id;

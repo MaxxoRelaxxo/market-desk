@@ -19,12 +19,22 @@ Same structure as markets-data-hub: Python/Polars → `scripts/build_data.py` �
 PYTHONPATH=src uv run python -c "from assets.fred import save_fred_parquet; save_fred_parquet()"
 PYTHONPATH=src uv run python -c "from assets.ameco import save_ameco_parquet; save_ameco_parquet()"
 PYTHONPATH=src uv run python -c "from assets.daily_yields import save_daily_parquet; print(save_daily_parquet())"
-uv run python scripts/build_data.py          # all themes, or e.g. `... build_data.py egb`
+PYTHONPATH=src uv run python -c "from assets.swedish_data import save_svea_parquet; save_svea_parquet()"
+uv run python scripts/build_data.py          # all themes, or e.g. `... build_data.py se_rates`
 cd frontend && npm install && npm run dev
 ```
 
-Themes (tabs, F1/F2…): **EGB Spreads** (`src/models/egb.py`) and **US Rates**.
-Add a theme: one `build_<theme>()` in `scripts/build_data.py` + one component in `frontend/src/sections/` registered in `THEMES` in `App.jsx`.
+Pages (tabs, F1/F2…): **Rates** (`frontend/src/sections/RatesPage.jsx`), one scrolling page:
+overview tiles + levels/changes/range table (SE, US, euro area 10Y) → weekly development → curve analysis
+(SGB / UST / TIPS vs chosen dates) → EGB relative value → Swedish term premium (ACM).
+Data: `us_rates.json`, `egb.json`, `se_rates.json` (`build_us_rates`, `build_egb`, `build_se_rates`).
+Add a page (FX, Macro): `build_<theme>()` in `scripts/build_data.py` + a component in `frontend/src/sections/` registered in `THEMES` in `App.jsx`.
+
+### Swedish term premium (ACM 2013, `src/models/acm.py`)
+
+Month-end SWEA T-bills 1M/3M/6M + SGB 2Y/5Y/7Y/10Y, PCHIP to a 1–120 month grid, factors = 3 yield PCs.
+VAR(1) on factors → excess returns (3M…10Y) on innovations + lagged factors → prices of risk.
+Term premium = model yield − risk-neutral yield (λ = 0). 1M T-bill (`SETB1MBENCHC`) gaps filled with the policy rate.
 
 ### EGB relative value model (daily cross-section)
 
