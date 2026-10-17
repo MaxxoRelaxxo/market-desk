@@ -199,11 +199,7 @@ function CurveAnalysis({ curves }) {
 
   return (
     <Block id="curve" title="CURVE ANALYSIS" sub="government bonds · latest vs dates"
-      right={
-        <select className="select" value={code} onChange={(e) => setCode(e.target.value)}>
-          {codes.map((k) => <option key={k} value={k}>{curves[k].name}</option>)}
-        </select>
-      }>
+      right={<Toggle value={code} onChange={setCode} options={codes.map((k) => ({ id: k, label: curves[k].name.toUpperCase() }))} />}>
       <div className="grid">
         <Card title={`${c.name.toUpperCase()} · GOVERNMENT CURVE (%)`}>
           <div className="date-bar">

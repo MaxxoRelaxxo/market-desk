@@ -197,25 +197,16 @@ def build_se_rates() -> None:
 
 
 # ============================================================
-# GOVERNMENT CURVES (curve analysis): Sweden, euro area, US
+# GOVERNMENT CURVES (curve analysis): Sweden, US
 # ============================================================
 
 def build_curves() -> None:
-    """{country: {name, tenors: {tenor: years}, history: daily wide date | <tenor>...}}, order SE, EA, US."""
+    """{country: {name, tenors: {tenor: years}, history: daily wide date | <tenor>...}}."""
     tenor = lambda t: int(t.rstrip("Y"))  # noqa: E731
     long = [
         ("SE", "Sweden", _svea(list(SGB)).select(
             "date", pl.col("series_id").replace_strict({s: f"{t}Y" for s, t in SGB.items()}).alias("tenor"), "value")),
     ]
-    curves = DATA_DIR / "egb_curves.parquet"
-    if curves.exists():
-        ea = pl.concat([
-            pl.read_parquet(curves).rename({"yield": "value"}),
-            pl.read_parquet(DATA_DIR / "egb_daily.parquet").select(
-                "date", "country", pl.lit("10Y").alias("tenor"), pl.col("yield").alias("value")),
-        ])
-        long += [(c, egb.NAMES[c], g.drop("country"))
-                 for (c,), g in ea.group_by("country", maintain_order=True) if g["tenor"].n_unique() > 1]
     us = pl.read_parquet(DATA_DIR / "us_rates.parquet").filter(pl.col("series_id").is_in(list(NOMINAL)))
     long.append(("US", "United States", us.select(
         "date", pl.col("series_id").replace_strict({s: f"{t}Y" for s, t in NOMINAL.items()}).alias("tenor"), "value")))

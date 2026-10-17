@@ -19,7 +19,6 @@ Same structure as markets-data-hub: Python/Polars → `scripts/build_data.py` �
 PYTHONPATH=src uv run python -c "from assets.fred import save_fred_parquet; save_fred_parquet()"
 PYTHONPATH=src uv run python -c "from assets.ameco import save_ameco_parquet; save_ameco_parquet()"
 PYTHONPATH=src uv run python -c "from assets.daily_yields import save_daily_parquet; print(save_daily_parquet())"
-PYTHONPATH=src uv run python -c "from assets.daily_yields import save_curves_parquet; save_curves_parquet()"
 PYTHONPATH=src uv run python -c "from assets.swedish_data import save_svea_parquet; save_svea_parquet()"
 uv run python scripts/build_data.py          # all themes, or e.g. `... build_data.py se_rates`
 cd frontend && npm install && npm run dev
@@ -27,7 +26,7 @@ cd frontend && npm install && npm run dev
 
 Pages (tabs, F1/F2…): **Rates** (`frontend/src/sections/RatesPage.jsx`), one scrolling page:
 overview tiles + levels/changes/range table (Sweden, euro area 10Y, US) → weekly development → curve analysis
-(government bonds per country vs chosen dates: SGB, UST, euro countries with SWEA 2Y/5Y in `egb_curves.parquet`)
+(government bonds vs chosen dates: Sweden SGB, US Treasuries)
 → EGB relative value → Swedish term premium (ACM).
 Data: `se_rates.json`, `egb.json`, `us_rates.json`, `curves.json` (`build_se_rates`, `build_egb`, `build_us_rates`, `build_curves`).
 Add a page (FX, Macro): `build_<theme>()` in `scripts/build_data.py` + a component in `frontend/src/sections/` registered in `THEMES` in `App.jsx`.
