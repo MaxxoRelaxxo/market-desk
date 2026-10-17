@@ -45,3 +45,9 @@ Add a theme: one `build_<theme>()` in `scripts/build_data.py` + one component in
   z 104w = residual vs its own 104-week history.
 - LOO (robustness): each country priced off a fit on the other countries only.
 - Caveat: AMECO is the latest vintage, so the backtest has look-ahead.
+
+### Deploy (GitHub Pages)
+
+`.github/workflows/daily.yml` runs daily at 05:00 UTC (and on push to `main` / manually): fetches FRED, AMECO and
+daily yields, commits updated parquet, builds the frontend and deploys to Pages. A failing source keeps its last data.
+Setup: Settings → Pages → Source: *GitHub Actions*; Settings → Secrets → Actions: `FRED_API_KEY`, `RIKSBANK_API_KEY`.
