@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Area, CartesianGrid, ComposedChart, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { Card, StatCard, Status, Tip, Toggle } from "../components/ui";
+import { Card, Flag, StatCard, Status, Tip, Toggle } from "../components/ui";
 import { COLORS, axis, dateLabel, fmt, signed, timeAxis, useData, withT } from "../lib";
 import EgbSection from "./EgbSection";
 
@@ -47,11 +47,11 @@ const tenorLabel = (t) => (t < 1 ? `${Math.round(t * 12)}M` : `${t}Y`);
 const chgCls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "");
 const TimeTip = (props) => <Tip {...props} label={props.label != null ? dateLabel(props.label) : ""} />;
 
-function Block({ id, title, sub, right, children }) {
+function Block({ id, title, sub, right, hero, children }) {
   return (
     <section id={id} className="block">
-      <div className="section-head">
-        <h2>{title} {sub && <span className="muted">| {sub}</span>}</h2>
+      <div className={`section-head${hero ? " hero" : ""}`}>
+        <h2>{title}{sub && <span className="muted">{sub}</span>}</h2>
         {right}
       </div>
       {children}
@@ -63,18 +63,25 @@ function Block({ id, title, sub, right, children }) {
 
 function Overview({ se, us, egb }) {
   const markets = [
-    ["SWEDEN", se?.latest, (r) => r.label],
-    ["EURO AREA 10Y", egb?.yields_latest, (r) => r.label],
-    ["UNITED STATES", us?.latest, (r) => US_SHORT[r.series_id]],
+    ["SWEDEN", se?.latest, (r) => r.label.replace("SGB ", ""), se?.history, "se", "var(--se)", "(SGB)"],
+    ["EURO AREA", egb?.yields_latest, (r) => r.label, egb?.yields, "eu", null, "(10Y)"],
+    ["UNITED STATES", us?.latest, (r) => US_SHORT[r.series_id], us?.history, "us", "var(--us)"],
   ].filter(([, rows]) => rows);
+  const asof = markets.flatMap(([, rows]) => rows.map((r) => r.date)).sort().at(-1);
+  // Sparklines: last year of weekly history
+  const spark = (hist, id) => (hist ?? []).slice(-52).map((r) => r[id]).filter((v) => v != null);
 
   return (
-    <Block id="overview" title="RATES" sub="Sweden · Euro area · US">
-      {markets.map(([m, rows, label]) => (
+    <Block id="overview" title="RATES" sub="Sweden · Euro area · United States" hero
+      right={<span className="asof">As of {asof}</span>}>
+      {markets.map(([m, rows, label, hist, flag, color, note]) => (
         <div key={m}>
-          <div className="stats-label">{m}</div>
+          <div className="stats-label"><Flag code={flag} />{m}{note && <span className="muted">{note}</span>}</div>
           <div className="stats">
-            {rows.map((r) => <StatCard key={r.series_id} label={label(r)} value={r.value} unit="%" delta={r.chg_prev} />)}
+            {rows.map((r) => (
+              <StatCard key={r.series_id} label={label(r)} value={r.value} unit="%" delta={r.chg_prev}
+                color={color} spark={spark(hist, r.series_id)} />
+            ))}
           </div>
         </div>
       ))}
@@ -351,19 +358,35 @@ function TermPremium({ se }) {
 
 // ============================================================ PAGE
 
+/** Id of the block currently at the top of the viewport. */
+function useSpy(ids, ready) {
+  const [current, setCurrent] = useState(ids[0]);
+  useEffect(() => {
+    const onScroll = () => {
+      const top = ids.filter((id) => document.getElementById(id)?.getBoundingClientRect().top <= 140);
+      setCurrent(top.at(-1) ?? ids[0]);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [ready]);
+  return current;
+}
+
 export default function RatesPage() {
   const se = useData("se_rates.json");
   const us = useData("us_rates.json");
   const egb = useData("egb.json");
   const curves = useData("curves.json");
   const states = [[se, "Swedish rates"], [egb, "EGB data"], [us, "US rates"], [curves, "curves"]];
+  const current = useSpy(BLOCKS.map(([id]) => id), !!se.data);
   if (states.every(([s]) => !s.data)) return <Status state={se.error ? se : us} what="rates" />;
   const args = { se: se.data, us: us.data, egb: egb.data, curves: curves.data };
 
   return (
     <div>
       <nav className="subnav">
-        {BLOCKS.map(([id, label]) => <a key={id} href={`#${id}`} onClick={(e) => {
+        {BLOCKS.map(([id, label]) => <a key={id} href={`#${id}`} className={id === current ? "active" : ""} onClick={(e) => {
           e.preventDefault();
           document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
         }}>{label}</a>)}

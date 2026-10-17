@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-export const COLORS = ["#FFA028", "#4C9AFF", "#3FB950", "#B794F4", "#F472B6", "#4FD1A5", "#F85149", "#E3B341", "#8A939E", "#56D4DD", "#FF7B72", "#A5D6FF", "#D2A8FF"];
-export const UP = "#3FB950";
-export const DOWN = "#F85149";
+export const COLORS = ["#4F8EF7", "#A78BFA", "#34D399", "#F59E0B", "#F472B6", "#22D3EE", "#F87171", "#FACC15", "#94A3B8", "#2DD4BF", "#FB923C", "#93C5FD", "#C4B5FD"];
+export const UP = "#4ADE80";
+export const DOWN = "#F87171";
 
 export const fmt = (v, d = 2) => (v == null || Number.isNaN(v) ? "–" : v.toFixed(d));
 export const signed = (v, d = 1) => (v == null ? "–" : `${v > 0 ? "+" : ""}${v.toFixed(d)}`);

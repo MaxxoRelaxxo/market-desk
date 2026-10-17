@@ -7,7 +7,7 @@ import { Card, Status, Tip, Toggle } from "../components/ui";
 import { COLORS, DOWN, UP, axis, dateLabel, fmt, signed, timeAxis, useData, withT } from "../lib";
 
 const FACTOR_LABEL = { debt: "Debt", tds: "TDS" };
-const SIGNAL_COLOR = { CHEAP: UP, RICH: DOWN, NEUTRAL: "#E8EDF2" };
+const SIGNAL_COLOR = { CHEAP: UP, RICH: DOWN, NEUTRAL: "#E6ECF5" };
 const SIGNAL_CLS = { CHEAP: "sig-cheap", RICH: "sig-rich", NEUTRAL: "" };
 
 function FairTip({ active, payload }) {
@@ -52,7 +52,7 @@ export default function EgbSection() {
   const dot = ({ cx, cy, payload: r }) => (
     <g style={{ cursor: "pointer" }}>
       <circle cx={cx} cy={cy} r={5} fill={SIGNAL_COLOR[r.signal]} stroke={r.country === country ? "var(--accent)" : "none"} strokeWidth={2} />
-      <text x={cx} y={cy + 16} textAnchor="middle" fill="#AAB3BF" fontSize={10}>{r.country}</text>
+      <text x={cx} y={cy + 16} textAnchor="middle" fill="var(--muted)" fontSize={10}>{r.country}</text>
     </g>
   );
   const decomp = snap.map((r) => ({ ...r, ...Object.fromEntries(factors.map((f) => [f, r[`c_${f}`]])) }));
@@ -60,7 +60,7 @@ export default function EgbSection() {
   return (
     <div>
       <div className="section-head">
-        <h2>EGB RELATIVE VALUE <span className="muted">| 10Y spread vs Bund</span></h2>
+        <h2>EGB RELATIVE VALUE <span className="muted">10Y spread vs Bund</span></h2>
       </div>
       <div className="eq-line">
         {d.asof} | {equation} | R² {fmt(fit.r2, 2)} | N {fit.n} | σ {fmt(fit.sigma, 1)} bps | lag {d.lag_days}d
