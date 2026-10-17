@@ -50,7 +50,7 @@ export function Tip({ active, payload, label, digits = 2, unit = "" }) {
   return (
     <div className="tt">
       <div className="tt-label">{label}</div>
-      {payload.map((p) => (
+      {payload.filter((p) => typeof p.value === "number").map((p) => (
         <div key={p.dataKey} className="tt-row">
           <span className="tt-dot" style={{ background: p.color || p.stroke || p.fill }} />
           <span className="tt-name">{p.name}</span>

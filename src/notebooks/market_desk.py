@@ -384,7 +384,7 @@ def _(pl):
         "SEGVB7YC" : "Swedish Government Bond 7Y",
         "SEGVB10YC" : "Swedish Government Bond 10Y",
         "SEKKIX92" : "KIX-index",
-        "SETB1MBENCH" : "Swedish Treasury Bill maturity 1m",
+        "SETB1MBENCHC" : "Swedish Treasury Bill maturity 1m",
         "SETB3MBENCH" : "Swedish Treasury Bill maturity 3m",
         "SETB6MBENCH" : "Swedish Treasury Bill maturity 6m",
         "SETB12MBENCH" : "Swedish Treasury Bill maturity 1y",
