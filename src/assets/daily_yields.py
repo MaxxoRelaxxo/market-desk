@@ -267,7 +267,9 @@ def fetch_nbb(countries: list[str] = NBB_COUNTRIES, start: str = "2000-01-01") -
 # ============================================================
 
 def save_daily_parquet(start: str = "2000-01-01") -> Path:
-    """Fetch all daily sources. One failing source does not stop the others."""
+    """Fetch all daily sources. A failing source keeps its rows from the existing parquet."""
+    path = DATA_DIR / "egb_daily.parquet"
+    old = pl.read_parquet(path) if path.exists() else pl.DataFrame(schema=SCHEMA)
     frames = []
     sources = [
         ("Riksbank", lambda: fetch_swea(start)),
@@ -282,8 +284,9 @@ def save_daily_parquet(start: str = "2000-01-01") -> Path:
             frames.append(df)
         except Exception as e:  # noqa: BLE001
             print(f"{name} failed: {e}")
+            frames.append(old.filter(pl.col("source").str.starts_with(name)))
 
-    if not frames:
+    if all(f.is_empty() for f in frames):
         raise RuntimeError("No daily yields fetched")
 
     out = (
@@ -293,6 +296,5 @@ def save_daily_parquet(start: str = "2000-01-01") -> Path:
         .sort("country", "date")
     )
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    path = DATA_DIR / "egb_daily.parquet"
     out.write_parquet(path)
     return path
