@@ -13,7 +13,7 @@ const US_SHORT = {
   DGS2: "UST 2Y", DGS5: "UST 5Y", DGS7: "UST 7Y", DGS10: "UST 10Y", DGS30: "UST 30Y",
   DFII5: "TIPS 5Y", DFII7: "TIPS 7Y", DFII10: "TIPS 10Y", DFII30: "TIPS 30Y",
 };
-const CHANGES = [["chg_prev", "1D"], ["chg_w1", "1W"], ["chg_m1", "1M"], ["chg_y1", "1Y"]];
+const CHANGES = [["chg_prev", "1D"], ["chg_w1", "1W"], ["chg_m1", "1M"], ["chg_ytd", "YTD"], ["chg_y1", "1Y"]];
 const RANGES = [{ id: 3, label: "3Y" }, { id: 10, label: "10Y" }, { id: 99, label: "MAX" }];
 const PANELS = [
   { src: "se", title: "SWEDEN · SGB YIELDS (%)", lines: [["SEGVB2YC", "2Y"], ["SEGVB5YC", "5Y"], ["SEGVB7YC", "7Y"], ["SEGVB10YC", "10Y"]] },
@@ -86,7 +86,7 @@ function Overview({ se, us, egb }) {
         </div>
       ))}
       <Card title="LEVELS, CHANGES (BP) & RANGE"
-        note="Change vs previous obs / 1W / 1M / 1Y. 1Y range: low–high and where today sits. 5Y pct: share of the last 5 years with a level at or below today.">
+        note="Change vs previous obs / 1W / 1M / last obs of previous year (YTD) / 1Y. 1Y range: low–high and where today sits. 5Y pct: share of the last 5 years with a level at or below today.">
         <div className="table-wrap"><table className="table">
           <thead>
             <tr>
@@ -96,7 +96,7 @@ function Overview({ se, us, egb }) {
           </thead>
           <tbody>
             {markets.flatMap(([m, rows, label]) => [
-              <tr key={m} className="group"><td colSpan={12}>{m}</td></tr>,
+              <tr key={m} className="group"><td colSpan={13}>{m}</td></tr>,
               ...rows.map((r) => {
                 const pos = r.hi_1y > r.lo_1y ? (r.value - r.lo_1y) / (r.hi_1y - r.lo_1y) : 0.5;
                 return (
