@@ -17,7 +17,7 @@ def _():
     importlib.reload(utils.series)
 
     FRED_SERIES = utils.series.FRED_SERIES
-    return FRED_SERIES, alt, mo, pl
+    return FRED_SERIES, alt, date, importlib, mo, pl, timedelta
 
 
 @app.cell
@@ -448,160 +448,60 @@ def _(pl, svea):
 
 
 @app.cell
-def _(pl, svea):
-    currencies = [
-        "USD", "EUR", "JPY", "GBP", "CHF",
-        "CAD", "AUD", "NZD", "HKD", "NOK", "SEK"
-    ]
+def _(importlib):
+    import models.fx
 
-    fx = (
-        svea
-        .filter(
-            pl.col("series_id").is_in(
-                [f"SEK{c}PMI" for c in currencies if c != "SEK"]
-            )
-        )
-        .select(
-            "date",
-            pl.col("series_id").str.slice(3, 3).alias("currency"),
-            "value"
-        )
-        .pivot(on="currency", index="date", values="value")
-        .sort("date")
-        .drop_nulls()
-    )
-
-    latest = fx.tail(1)
-
-    rates = {
-        c: latest[c][0]
-        for c in currencies if c != "SEK"
-    }
-    rates["SEK"] = 1.0
-
-    matrix = pl.DataFrame({
-        "currency": currencies,
-        **{
-            base: [
-                rates[base] / rates[quote]
-                for quote in currencies
-            ]
-            for base in currencies
-        }
-    })
-
-    matrix
-    return currencies, fx
+    importlib.reload(models.fx)
+    fxm = models.fx
+    spot = fxm.g10_spot()
+    return fxm, spot
 
 
 @app.cell
-def _(df):
-    df
+def _(mo):
+    g10_horizon = mo.ui.dropdown(
+        options={"Level": 0, "1W": 7, "1M": 30, "YTD": -1, "1Y": 365},
+        value="Level",
+        label="G10 matrix",
+    )
+    g10_horizon
+    return (g10_horizon,)
+
+
+@app.cell
+def _(date, fxm, g10_horizon, pl, spot, timedelta):
+    # Rad = basvaluta, kolumn = kvotvaluta: enheter kolumn per 1 rad (EUR-rad, USD-kolumn = EUR/USD)
+    _now = fxm.matrix(spot)
+    _days = g10_horizon.value
+    if _days == 0:
+        g10_matrix = _now
+    else:
+        _last = spot["date"].max()
+        _then = fxm.matrix(spot, date(_last.year - 1, 12, 31) if _days < 0 else _last - timedelta(days=_days))
+        # % förändring: > 0 = radvalutan starkare mot kolumnen
+        g10_matrix = _now.select("ccy", *[((pl.col(c) / _then[c] - 1) * 100).round(2) for c in fxm.G10])
+    g10_matrix
     return
 
 
 @app.cell
-def _(fx):
-    fx
-    return
+def _(alt, fxm, spot):
+    # SEK vs PPP (relativ PPP, bas 2000–2009): > 0 = SEK övervärderad, < 0 = undervärderad
+    ppp = fxm.ppp(spot)
+    _dev = ppp.select("date", *[f"{c}_dev" for c in fxm.PPP_CCY]).unpivot(index="date", variable_name="ccy")
+
+    alt.Chart(_dev).mark_line(strokeWidth=1.2).encode(
+        x=alt.X("date:T", title=None),
+        y=alt.Y("value:Q", title="SEK vs PPP (%)"),
+        color=alt.Color("ccy:N", title=None),
+        tooltip=["date:T", "ccy:N", alt.Tooltip("value:Q", format=".1f")],
+    ).properties(title="SEK – avvikelse från PPP", width=800, height=350).interactive()
+    return (ppp,)
 
 
 @app.cell
-def _(df, pl):
-    inflation = (
-        df
-        .filter(
-            pl.col("category") == "inflation"
-        )
-        .pivot(
-            index="date",
-            on="name",
-            values="value"
-        )
-    )
-    inflation
-    return (inflation,)
-
-
-@app.cell
-def _(currencies, fx, inflation, pl):
-    g10 = [c for c in currencies if c != "HKD"]
-
-    cpi_names = {
-        "USD": "US Consumer Price Index",
-        "EUR": "Euro Area Harmonised Consumer Price Index",
-        "JPY": "Japan Consumer Price Index",
-        "GBP": "UK Consumer Price Index",
-        "CHF": "Switzerland Consumer Price Index",
-        "CAD": "Canada Consumer Price Index",
-        "AUD": "Australia Consumer Price Index",
-        "NZD": "New Zealand Consumer Price Index",
-        "NOK": "Norway Consumer Price Index",
-        "SEK": "Sweden Consumer Price Index",
-    }
-
-    # Dagliga valutakurser till månadsgenomsnitt
-    spot = (
-        fx
-        .group_by_dynamic("date", every="1mo")
-        .agg(
-            pl.col([c for c in g10 if c != "SEK"]).mean()
-        )
-        .sort("date")
-    )
-
-    foreign = ["USD", "EUR", "NOK"]
-
-    cpi = (
-        inflation
-        .select(
-            "date",
-            pl.col("US Consumer Price Index").alias("USD_cpi"),
-            pl.col("Euro Area Harmonised Consumer Price Index").alias("EUR_cpi"),
-            pl.col("Norway Consumer Price Index").alias("NOK_cpi"),
-            pl.col("Sweden Consumer Price Index").alias("SEK_cpi"),
-        )
-        .sort("date")
-        .with_columns(pl.exclude("date").forward_fill())
-    )
-
-    daily = (
-        fx.select("date", *foreign)
-        .sort("date")
-        .join_asof(cpi, on="date", strategy="backward")
-    )
-
-    base = daily.filter(
-        pl.col("date").is_between(pl.date(2000, 1, 1), pl.date(2009, 12, 31))
-    )
-
-    spot_mean = {c: base[c].mean() for c in foreign}
-    cpi_mean = {c: base[f"{c}_cpi"].mean() for c in foreign + ["SEK"]}
-
-    valuation = (
-        daily
-        .select(
-            "date",
-            *[
-                (
-                    (
-                        pl.col(c)
-                        /
-                        (
-                            pl.lit(spot_mean[c])
-                            * (pl.col("SEK_cpi") / cpi_mean["SEK"])
-                            / (pl.col(f"{c}_cpi") / cpi_mean[c])
-                        )
-                        - 1
-                    ) * -100
-                ).alias(c)
-                for c in foreign
-            ]
-        )
-        .drop_nulls()
-    )
-
-    valuation
+def _(ppp):
+    ppp.tail(1)
     return
 
 

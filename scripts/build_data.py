@@ -3,7 +3,7 @@
 
 import json
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import polars as pl
@@ -11,7 +11,7 @@ import polars as pl
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from models import acm, egb
+from models import acm, egb, fx
 from utils.series import FRED_SERIES
 
 DATA_DIR = ROOT / "src" / "data"
@@ -42,8 +42,8 @@ US_HISTORY = [
 ]
 
 
-def _latest(df: pl.DataFrame, ids: list[str], labels: dict[str, str]) -> pl.DataFrame:
-    """Long df (date | series_id | value) -> level, bp change vs prev obs/1W/1M/YTD/1Y, 1Y range, 5Y percentile."""
+def _latest(df: pl.DataFrame, ids: list[str], labels: dict[str, str], pct: bool = False) -> pl.DataFrame:
+    """Long df (date | series_id | value) -> level, bp (pct: %) change vs prev obs/1W/1M/YTD/1Y, 1Y range, 5Y pct."""
     df = df.filter(pl.col("series_id").is_in(ids)).drop_nulls("value").sort("series_id", "date")
 
     def asof(offset: str, ytd: bool = False) -> pl.DataFrame:
@@ -70,7 +70,8 @@ def _latest(df: pl.DataFrame, ids: list[str], labels: dict[str, str]) -> pl.Data
         .join(stats, on="series_id", how="left")
         .select(
             "series_id", pl.col("series_id").replace_strict(labels).alias("label"), "date", "value",
-            *(((pl.col("value") - pl.col(c)) * 100).alias(f"chg_{c}") for c in ["prev", "w1", "m1", "ytd", "y1"]),
+            *((((pl.col("value") / pl.col(c) - 1) if pct else (pl.col("value") - pl.col(c))) * 100).alias(f"chg_{c}")
+              for c in ["prev", "w1", "m1", "ytd", "y1"]),
             "lo_1y", "hi_1y", "pct_5y",
         )
         .sort(pl.col("series_id").replace_strict({s: i for i, s in enumerate(ids)}))
@@ -222,7 +223,42 @@ def build_curves() -> None:
     _dump(out, "curves.json")
 
 
-THEMES = {"us_rates": build_us_rates, "egb": build_egb, "se_rates": build_se_rates, "curves": build_curves}
+# ============================================================
+# FX & COMMODITIES: pairs, G10 matrix, SEK PPP
+# ============================================================
+
+def build_fx() -> None:
+    spot = fx.g10_spot()
+    pairs, comm = fx.pairs(spot), fx.commodities()
+
+    def weekly(df: pl.DataFrame) -> pl.DataFrame:
+        return (df.sort("series_id", "date").group_by_dynamic("date", every="1w", group_by="series_id")
+                .agg(pl.col("value").last()).pivot(on="series_id", index="date", values="value").sort("date"))
+
+    # G10 spot (SEK per unit) at the matrix horizons; frontend derives crosses and % changes
+    last = spot["date"].max()
+    at = {"latest": last, "prev": spot["date"][-2], "w1": last - timedelta(weeks=1), "m1": last - timedelta(days=30),
+          "ytd": date(last.year - 1, 12, 31), "y1": last - timedelta(days=365)}
+    g10 = {k: spot.filter(pl.col("date") <= d).row(-1, named=True) for k, d in at.items()}
+
+    ppp = fx.ppp(spot)
+    _dump({
+        "asof": last,
+        "fx_latest": _records(_latest(pairs, list(fx.PAIRS), {p: p for p in fx.PAIRS}, pct=True), 4),
+        "comm_latest": _records(_latest(comm, list(fx.COMMODITIES), fx.COMMODITIES, pct=True), 4),
+        "fx": _records(weekly(pairs).select("date", *fx.PAIRS), 4),
+        "comm": _records(weekly(comm).select("date", *fx.COMMODITIES), 3),
+        "g10": {"ccys": fx.G10, "spot": g10},
+        "ppp": {
+            "ccys": fx.PPP_CCY, "base": [d.isoformat() for d in fx.BASE], "cpi": fx.CPI,
+            "latest": ppp.row(-1, named=True),
+            "history": _records(ppp.group_by_dynamic("date", every="1w").agg(pl.all().last()).sort("date"), 4),
+        },
+    }, "fx.json")
+
+
+THEMES = {"us_rates": build_us_rates, "egb": build_egb, "se_rates": build_se_rates, "curves": build_curves,
+          "fx": build_fx}
 
 
 if __name__ == "__main__":
