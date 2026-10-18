@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Area, CartesianGrid, ComposedChart, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { Card, Flag, StatCard, Status, Tip, Toggle } from "../components/ui";
-import { COLORS, axis, dateLabel, fmt, signed, timeAxis, useData, withT } from "../lib";
+import { Block, Card, Flag, StatCard, Status, SubNav, Tip, TimeTip, Toggle, chgCls, useSpy } from "../components/ui";
+import { COLORS, axis, fmt, signed, timeAxis, useData, withT } from "../lib";
 import EgbSection from "./EgbSection";
 
 const BLOCKS = [
@@ -44,20 +44,6 @@ const asOf = (rows, iso) => {
 };
 
 const tenorLabel = (t) => (t < 1 ? `${Math.round(t * 12)}M` : `${t}Y`);
-const chgCls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "");
-const TimeTip = (props) => <Tip {...props} label={props.label != null ? dateLabel(props.label) : ""} />;
-
-function Block({ id, title, sub, right, hero, children }) {
-  return (
-    <section id={id} className="block">
-      <div className={`section-head${hero ? " hero" : ""}`}>
-        <h2>{title}{sub && <span className="muted">{sub}</span>}</h2>
-        {right}
-      </div>
-      {children}
-    </section>
-  );
-}
 
 // ============================================================ OVERVIEW
 
@@ -358,21 +344,6 @@ function TermPremium({ se }) {
 
 // ============================================================ PAGE
 
-/** Id of the block currently at the top of the viewport. */
-function useSpy(ids, ready) {
-  const [current, setCurrent] = useState(ids[0]);
-  useEffect(() => {
-    const onScroll = () => {
-      const top = ids.filter((id) => document.getElementById(id)?.getBoundingClientRect().top <= 140);
-      setCurrent(top.at(-1) ?? ids[0]);
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [ready]);
-  return current;
-}
-
 export default function RatesPage() {
   const se = useData("se_rates.json");
   const us = useData("us_rates.json");
@@ -385,12 +356,7 @@ export default function RatesPage() {
 
   return (
     <div>
-      <nav className="subnav">
-        {BLOCKS.map(([id, label]) => <a key={id} href={`#${id}`} className={id === current ? "active" : ""} onClick={(e) => {
-          e.preventDefault();
-          document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-        }}>{label}</a>)}
-      </nav>
+      <SubNav blocks={BLOCKS} current={current} />
       {states.filter(([s]) => s.error).map(([, what]) => <Status key={what} state={{ error: true }} what={what} />)}
       <Overview {...args} />
       <Development {...args} />

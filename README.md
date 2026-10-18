@@ -20,6 +20,7 @@ PYTHONPATH=src uv run python -c "from assets.fred import save_fred_parquet; save
 PYTHONPATH=src uv run python -c "from assets.ameco import save_ameco_parquet; save_ameco_parquet()"
 PYTHONPATH=src uv run python -c "from assets.daily_yields import save_daily_parquet; print(save_daily_parquet())"
 PYTHONPATH=src uv run python -c "from assets.swedish_data import save_svea_parquet; save_svea_parquet()"
+PYTHONPATH=src uv run python -c "from assets.yfinance import save_yfinance_parquet; save_yfinance_parquet()"
 uv run python scripts/build_data.py          # all themes, or e.g. `... build_data.py se_rates`
 cd frontend && npm install && npm run dev
 ```
@@ -30,7 +31,16 @@ overview tiles + levels/changes/range table (Sweden, euro area 10Y, US) → week
 (government bonds vs chosen dates: Sweden SGB, US Treasuries)
 → EGB relative value → Swedish term premium (ACM).
 Data: `se_rates.json`, `egb.json`, `us_rates.json`, `curves.json` (`build_se_rates`, `build_egb`, `build_us_rates`, `build_curves`).
-Add a page (FX, Macro): `build_<theme>()` in `scripts/build_data.py` + a component in `frontend/src/sections/` registered in `THEMES` in `App.jsx`.
+**FX & Commodities** (`frontend/src/sections/FxPage.jsx`, F2, data `fx.json` from `build_fx`, model `src/models/fx.py`):
+overview tiles + levels/% changes/range table → weekly development → G10 cross matrix → SEK vs PPP.
+
+- FX: Riksbank fixings (`SEK{CCY}PMI`, SEK per unit). EUR/USD and USD/JPY are crosses of the SEK fixings.
+- Commodities: yfinance front-month futures (Brent `BZ=F`, WTI `CL=F`, gold `GC=F`, silver `SI=F`, copper `HG=F`).
+- G10 matrix: cell (row, col) = units of col per 1 row; % change > 0 = row currency stronger. Avg = row vs the other nine.
+- SEK PPP (relative): fair CCY/SEK = base spot · (CPI_SE / base) / (CPI_F / base), base 2000–2009 (`fx.BASE`).
+  Valuation = −(spot / fair − 1), as Bloomberg SEK PPP % over/undervalued: < 0 = SEK undervalued. CPI: HICP (SE, EA, NO), CPI-U (US) via FRED.
+
+Add a page (Macro): `build_<theme>()` in `scripts/build_data.py` + a component in `frontend/src/sections/` registered in `THEMES` in `App.jsx`.
 
 ### Swedish term premium (ACM 2013, `src/models/acm.py`)
 

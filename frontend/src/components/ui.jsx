@@ -1,7 +1,7 @@
-import { Component } from "react";
-import { fmt } from "../lib";
+import { Component, useEffect, useState } from "react";
+import { dateLabel, fmt } from "../lib";
 
-export function StatCard({ label, value, unit, delta, deltaUnit = "bp", digits = 2, color, spark }) {
+export function StatCard({ label, value, unit, delta, deltaUnit = "bp", digits = 2, deltaDigits = 1, color, spark }) {
   const cls = delta > 0 ? "up" : delta < 0 ? "down" : "";
   const c = color ?? (delta > 0 ? "var(--up)" : delta < 0 ? "var(--down)" : undefined);
   return (
@@ -15,7 +15,7 @@ export function StatCard({ label, value, unit, delta, deltaUnit = "bp", digits =
         {delta != null && (
           <div className={`stat-delta ${cls}`}>
             {delta > 0 ? "▲" : delta < 0 ? "▼" : "—"} {delta > 0 ? "+" : ""}
-            {delta.toFixed(1)} {deltaUnit}
+            {delta.toFixed(deltaDigits)} {deltaUnit}
           </div>
         )}
       </div>
@@ -104,4 +104,45 @@ export class ErrorBoundary extends Component {
       </div>
     );
   }
+}
+
+export const chgCls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "");
+export const TimeTip = (props) => <Tip {...props} label={props.label != null ? dateLabel(props.label) : ""} />;
+
+export function Block({ id, title, sub, right, hero, children }) {
+  return (
+    <section id={id} className="block">
+      <div className={`section-head${hero ? " hero" : ""}`}>
+        <h2>{title}{sub && <span className="muted">{sub}</span>}</h2>
+        {right}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** Id of the block currently at the top of the viewport. */
+export function useSpy(ids, ready) {
+  const [current, setCurrent] = useState(ids[0]);
+  useEffect(() => {
+    const onScroll = () => {
+      const top = ids.filter((id) => document.getElementById(id)?.getBoundingClientRect().top <= 140);
+      setCurrent(top.at(-1) ?? ids[0]);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [ready]);
+  return current;
+}
+
+export function SubNav({ blocks, current }) {
+  return (
+    <nav className="subnav">
+      {blocks.map(([id, label]) => <a key={id} href={`#${id}`} className={id === current ? "active" : ""} onClick={(e) => {
+        e.preventDefault();
+        document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+      }}>{label}</a>)}
+    </nav>
+  );
 }

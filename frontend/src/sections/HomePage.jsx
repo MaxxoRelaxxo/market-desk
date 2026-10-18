@@ -16,13 +16,13 @@ const DESKS = [
   {
     id: "fx",
     label: "FX & Commodities",
-    status: "soon",
-    lead: "SEK in focus, priced against rate differentials and risk.",
+    status: "live",
+    lead: "SEK in focus: crosses, G10 and valuation vs PPP.",
     items: [
-      "EUR/SEK, USD/SEK, KIX and EUR/USD",
-      "FX vs 2Y rate differentials and carry",
-      "Brent, TTF gas, gold and copper",
-      "Correlation and volatility regimes",
+      "USD/SEK, EUR/SEK, EUR/USD and USD/JPY",
+      "G10 cross matrix: levels and % changes",
+      "SEK vs PPP: USD, EUR and NOK",
+      "Brent, WTI, gold, silver and copper",
     ],
   },
   {
@@ -72,7 +72,7 @@ export default function HomePage({ go }) {
         ))}
       </section>
 
-      <footer className="home-foot">Sources: Riksbank, FRED, ECB, Banca d'Italia, Banco de España, NBB, European Commission (AMECO).</footer>
+      <footer className="home-foot">Sources: Riksbank, FRED, Yahoo Finance, ECB, Banca d'Italia, Banco de España, NBB, European Commission (AMECO).</footer>
     </>
   );
 }
