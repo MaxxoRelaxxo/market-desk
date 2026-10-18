@@ -174,24 +174,13 @@ function Matrix({ g10 }) {
 // ============================================================ SEK PPP
 
 function Ppp({ ppp }) {
-  const [ccy, setCcy] = useState("EUR");
   const hist = useMemo(() => withT(ppp.history), [ppp]);
-  const l = ppp.latest;
   const [b0, b1] = ppp.base.map((x) => x.slice(0, 4));
 
   return (
     <Block id="ppp" title="SEK VS PPP" sub={`relative PPP · CPI · base ${b0}–${b1}`}>
-      <div className="stats">
-        {ppp.ccys.map((c) => (
-          <StatCard key={c} label={`SEK vs ${c}`} value={signed(l[`${c}_dev`], 1)} unit="%"
-            color={l[`${c}_dev`] < 0 ? "var(--down)" : "var(--up)"} />
-        ))}
-        {ppp.ccys.map((c) => (
-          <StatCard key={`${c}-fair`} label={`${c}/SEK spot · PPP`} value={`${fmt(l[c], 3)} · ${fmt(l[`${c}_fair`], 3)}`} />
-        ))}
-      </div>
       <div className="grid">
-        <Card title="SEK MISVALUATION VS PPP (%)" note="> 0 = SEK overvalued, < 0 = SEK undervalued vs its PPP-implied rate. Weekly.">
+        <Card title="SEK MISVALUATION VS PPP (%)" span={2} note="> 0 = SEK overvalued, < 0 = SEK undervalued vs its PPP-implied rate. Weekly.">
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={hist} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
@@ -203,21 +192,6 @@ function Ppp({ ppp }) {
               {ppp.ccys.map((c, i) => (
                 <Line key={c} dataKey={`${c}_dev`} name={`vs ${c}`} stroke={COLORS[i]} dot={false} strokeWidth={1.5} />
               ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </Card>
-        <Card title={`${ccy}/SEK · SPOT VS PPP FAIR`}
-          right={<Toggle value={ccy} onChange={setCcy} options={ppp.ccys.map((c) => ({ id: c, label: c }))} />}
-          note="Spot above fair = SEK weaker than PPP implies.">
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={hist} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
-              <XAxis {...timeAxis(hist)} />
-              <YAxis {...axis} width={40} domain={["auto", "auto"]} />
-              <Tooltip content={<TimeTip digits={3} />} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line dataKey={ccy} name="Spot" stroke={COLORS[0]} dot={false} strokeWidth={1.5} />
-              <Line dataKey={`${ccy}_fair`} name="PPP fair" stroke={COLORS[3]} dot={false} strokeWidth={1.5} strokeDasharray="5 3" />
             </LineChart>
           </ResponsiveContainer>
         </Card>
