@@ -43,11 +43,12 @@ US_HISTORY = [
 
 
 def _latest(df: pl.DataFrame, ids: list[str], labels: dict[str, str]) -> pl.DataFrame:
-    """Long df (date | series_id | value) -> level, bp change vs prev obs/1W/1M/1Y, 1Y range, 5Y percentile."""
+    """Long df (date | series_id | value) -> level, bp change vs prev obs/1W/1M/YTD/1Y, 1Y range, 5Y percentile."""
     df = df.filter(pl.col("series_id").is_in(ids)).drop_nulls("value").sort("series_id", "date")
 
-    def asof(offset: str) -> pl.DataFrame:
-        cutoff = pl.col("date").max().dt.offset_by(offset)
+    def asof(offset: str, ytd: bool = False) -> pl.DataFrame:
+        cutoff = pl.col("date").max()
+        cutoff = cutoff.dt.truncate("1y").dt.offset_by("-1d") if ytd else cutoff.dt.offset_by(offset)
         return df.filter(pl.col("date") <= cutoff.over("series_id")).group_by("series_id").agg(pl.col("value").last())
 
     def since(offset: str) -> pl.DataFrame:
@@ -64,11 +65,12 @@ def _latest(df: pl.DataFrame, ids: list[str], labels: dict[str, str]) -> pl.Data
         .agg(pl.col("date").last(), pl.col("value").last(), pl.col("value").tail(2).first().alias("prev"))
         .join(asof("-1w").rename({"value": "w1"}), on="series_id", how="left")
         .join(asof("-1mo").rename({"value": "m1"}), on="series_id", how="left")
+        .join(asof("", ytd=True).rename({"value": "ytd"}), on="series_id", how="left")
         .join(asof("-1y").rename({"value": "y1"}), on="series_id", how="left")
         .join(stats, on="series_id", how="left")
         .select(
             "series_id", pl.col("series_id").replace_strict(labels).alias("label"), "date", "value",
-            *(((pl.col("value") - pl.col(c)) * 100).alias(f"chg_{c}") for c in ["prev", "w1", "m1", "y1"]),
+            *(((pl.col("value") - pl.col(c)) * 100).alias(f"chg_{c}") for c in ["prev", "w1", "m1", "ytd", "y1"]),
             "lo_1y", "hi_1y", "pct_5y",
         )
         .sort(pl.col("series_id").replace_strict({s: i for i, s in enumerate(ids)}))
