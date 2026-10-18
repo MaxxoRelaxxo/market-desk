@@ -38,7 +38,7 @@ overview tiles + levels/% changes/range table → weekly development → G10 cro
 - Commodities: yfinance front-month futures (Brent `BZ=F`, WTI `CL=F`, gold `GC=F`, silver `SI=F`, copper `HG=F`).
 - G10 matrix: cell (row, col) = units of col per 1 row; % change > 0 = row currency stronger. Avg = row vs the other nine.
 - SEK PPP (relative): fair CCY/SEK = base spot · (CPI_SE / base) / (CPI_F / base), base 2000–2009 (`fx.BASE`).
-  Misvaluation = fair / spot − 1: > 0 = SEK overvalued. CPI: HICP (SE, EA, NO), CPI-U (US) via FRED.
+  Valuation = −(spot / fair − 1), as Bloomberg SEK PPP % over/undervalued: < 0 = SEK undervalued. CPI: HICP (SE, EA, NO), CPI-U (US) via FRED.
 
 Add a page (Macro): `build_<theme>()` in `scripts/build_data.py` + a component in `frontend/src/sections/` registered in `THEMES` in `App.jsx`.
 

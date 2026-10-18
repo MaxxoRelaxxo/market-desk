@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Block, Card, StatCard, Status, SubNav, TimeTip, Toggle, chgCls, useSpy } from "../components/ui";
 import { COLORS, axis, fmt, signed, timeAxis, useData, withT } from "../lib";
 
@@ -18,6 +18,7 @@ const PANELS = [
   { src: "comm", title: "SILVER ($/OZ)", lines: [["SI=F", "Silver"]] },
   { src: "comm", title: "COPPER ($/LB)", lines: [["HG=F", "Copper"]] },
 ];
+const PPP_RANGES = [{ id: 1, label: "1Y" }, { id: 5, label: "5Y" }, { id: 99, label: "MAX" }];
 const HORIZONS = [
   { id: "latest", label: "LEVEL" }, { id: "prev", label: "1D" }, { id: "w1", label: "1W" },
   { id: "m1", label: "1M" }, { id: "ytd", label: "YTD" }, { id: "y1", label: "1Y" },
@@ -29,7 +30,7 @@ const digits = (id) => DIGITS[id] ?? 2;
 
 function Overview({ d }) {
   const groups = [
-    ["FX", d.fx_latest, d.fx, "(Riksbank fixings)"],
+    ["FX", d.fx_latest, d.fx],
     ["COMMODITIES", d.comm_latest, d.comm, "(front-month futures, USD)"],
   ];
   const spark = (hist, id) => hist.slice(-52).map((r) => r[id]).filter((v) => v != null);
@@ -39,7 +40,7 @@ function Overview({ d }) {
       right={<span className="asof">As of {d.asof}</span>}>
       {groups.map(([g, rows, hist, note]) => (
         <div key={g}>
-          <div className="stats-label">{g}<span className="muted">{note}</span></div>
+          <div className="stats-label">{g}{note && <span className="muted">{note}</span>}</div>
           <div className="stats">
             {rows.map((r) => (
               <StatCard key={r.series_id} label={label(r)} value={r.value} digits={digits(r.series_id)}
@@ -174,34 +175,53 @@ function Matrix({ g10 }) {
 // ============================================================ SEK PPP
 
 function Ppp({ ppp }) {
-  const hist = useMemo(() => withT(ppp.history), [ppp]);
+  const [ccy, setCcy] = useState("USD");
+  const [years, setYears] = useState(1);
+  const key = `${ccy}_val`;
+  const data = useMemo(() => {
+    const h = withT(ppp.history).filter((r) => r[key] != null);
+    const t0 = h[h.length - 1].t - years * 365.25 * 864e5;
+    return h.filter((r) => r.t >= t0);
+  }, [ppp, key, years]);
   const [b0, b1] = ppp.base.map((x) => x.slice(0, 4));
+  const last = data[data.length - 1];
+  const hi = data.reduce((a, r) => (r[key] > a[key] ? r : a));
+  const lo = data.reduce((a, r) => (r[key] < a[key] ? r : a));
+  const avg = data.reduce((s, r) => s + r[key], 0) / data.length;
 
   return (
-    <Block id="ppp" title="SEK VS PPP" sub={`relative PPP · CPI · base ${b0}–${b1}`}>
-      <div className="grid">
-        <Card title="SEK MISVALUATION VS PPP (%)" span={2} note="> 0 = SEK overvalued, < 0 = SEK undervalued vs its PPP-implied rate. Weekly.">
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={hist} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
-              <XAxis {...timeAxis(hist)} />
-              <YAxis {...axis} width={40} domain={["auto", "auto"]} />
-              <Tooltip content={<TimeTip digits={1} unit="%" />} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <ReferenceLine y={0} stroke="var(--muted)" />
-              {ppp.ccys.map((c, i) => (
-                <Line key={c} dataKey={`${c}_dev`} name={`vs ${c}`} stroke={COLORS[i]} dot={false} strokeWidth={1.5} />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </Card>
+    <Block id="ppp" title="SEK PPP VALUATION" sub={`relative PPP · CPI · base ${b0}–${b1}`}
+      right={<div className="toggles">
+        <Toggle value={ccy} onChange={setCcy} options={ppp.ccys.map((c) => ({ id: c, label: `vs ${c}` }))} />
+        <Toggle value={years} onChange={setYears} options={PPP_RANGES} />
+      </div>}>
+      <div className="stats">
+        <StatCard label={`Last · ${last.date}`} value={last[key]} digits={1} unit="%" />
+        <StatCard label={`High · ${hi.date}`} value={hi[key]} digits={1} unit="%" />
+        <StatCard label="Average" value={avg} digits={1} unit="%" />
+        <StatCard label={`Low · ${lo.date}`} value={lo[key]} digits={1} unit="%" />
       </div>
+      <Card title={`SEK PPP % OVER/UNDERVALUED VS ${ccy}`}
+        note={`−(${ccy}/SEK spot ÷ PPP fair − 1). < 0 = SEK undervalued. Daily.`}>
+        <ResponsiveContainer width="100%" height={340}>
+          <AreaChart data={data} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
+            <XAxis {...timeAxis(data)} />
+            <YAxis {...axis} width={40} domain={["auto", "auto"]} />
+            <Tooltip content={<TimeTip digits={1} unit="%" />} />
+            <ReferenceLine y={avg} stroke="var(--muted)" strokeDasharray="4 3" />
+            <Area dataKey={key} name={`vs ${ccy}`} baseValue="dataMin" stroke="var(--text)" strokeWidth={1.3}
+              fill="var(--accent)" fillOpacity={0.18} dot={false} isAnimationActive={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </Card>
       <div className="info">
         <b>Model</b>
         <p>
           Relative PPP: fair CCY/SEK = average spot over {b0}–{b1} × (CPI Sweden / its base average) ÷ (CPI foreign / its base average).
-          Misvaluation = fair ÷ spot − 1. CPI: HICP for Sweden, the euro area and Norway, CPI-U for the US (monthly, FRED),
-          carried forward to the daily Riksbank fixing. The level depends on the base period: it assumes SEK was fairly valued on average then.
+          Valuation = −(spot ÷ fair − 1), the Bloomberg SEK PPP % over/undervalued convention. CPI: HICP for Sweden, the euro area and Norway,
+          CPI-U for the US (monthly, FRED), carried forward to the daily Riksbank fixing. The level depends on the base period: it assumes SEK
+          was fairly valued on average then.
         </p>
       </div>
     </Block>

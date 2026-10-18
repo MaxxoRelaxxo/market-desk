@@ -196,3 +196,4 @@ button.brand { background: none; border: none; padding: 0; cursor: pointer; font
 .table.matrix td.diag { color: var(--muted); }
 .table.matrix td.avg { font-weight: 600; border-left: 1px solid var(--border); }
 .table.matrix tbody tr { cursor: default; }
+.toggles { display: flex; flex-wrap: wrap; gap: 8px; }

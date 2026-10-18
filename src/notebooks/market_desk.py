@@ -486,16 +486,16 @@ def _(date, fxm, g10_horizon, pl, spot, timedelta):
 
 @app.cell
 def _(alt, fxm, spot):
-    # SEK vs PPP (relativ PPP, bas 2000–2009): > 0 = SEK övervärderad, < 0 = undervärderad
+    # SEK vs PPP (relativ PPP, bas 2000–2009): −(spot / fair − 1), < 0 = SEK undervärderad
     ppp = fxm.ppp(spot)
-    _dev = ppp.select("date", *[f"{c}_dev" for c in fxm.PPP_CCY]).unpivot(index="date", variable_name="ccy")
+    _val = ppp.select("date", *[f"{c}_val" for c in fxm.PPP_CCY]).unpivot(index="date", variable_name="ccy")
 
-    alt.Chart(_dev).mark_line(strokeWidth=1.2).encode(
+    alt.Chart(_val).mark_line(strokeWidth=1.2).encode(
         x=alt.X("date:T", title=None),
         y=alt.Y("value:Q", title="SEK vs PPP (%)"),
         color=alt.Color("ccy:N", title=None),
         tooltip=["date:T", "ccy:N", alt.Tooltip("value:Q", format=".1f")],
-    ).properties(title="SEK – avvikelse från PPP", width=800, height=350).interactive()
+    ).properties(title="SEK PPP valuation", width=800, height=350).interactive()
     return (ppp,)
 
 

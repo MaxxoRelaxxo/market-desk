@@ -4,7 +4,7 @@ FX & commodities: G10 spot (Riksbank fixings), cross matrix and SEK relative PPP
 - Spot: SWEA `SEK{CCY}PMI` = SEK per 1 unit of CCY. Crosses are derived: EUR/USD = EURSEK / USDSEK.
 - Matrix: cell (row, col) = units of col per 1 row. % change > 0 = row currency stronger vs col.
 - PPP (relative): fair CCY/SEK = base spot · (P_SE / P_SE,base) / (P_F / P_F,base), base = mean over BASE.
-  Misvaluation = fair / spot − 1 (%): > 0 = SEK overvalued, < 0 = SEK undervalued vs PPP.
+  Valuation = −(spot / fair − 1) (%), as Bloomberg SEK PPP % over/undervalued: < 0 = SEK undervalued vs PPP.
   CPI: HICP (Eurostat via FRED), US CPI-U; monthly, carried forward to daily spot.
 """
 
@@ -78,7 +78,7 @@ def matrix(spot: pl.DataFrame, at: date | None = None) -> pl.DataFrame:
 
 
 def ppp(spot: pl.DataFrame, base: tuple[date, date] = BASE) -> pl.DataFrame:
-    """Daily: date | {CCY} spot | {CCY}_fair | {CCY}_dev (% SEK vs PPP, > 0 = SEK overvalued) for PPP_CCY."""
+    """Daily: date | {CCY} spot | {CCY}_fair | {CCY}_val (% SEK vs PPP, < 0 = SEK undervalued) for PPP_CCY."""
     cpi = (
         pl.read_parquet(DATA_DIR / "us_rates.parquet")
         .filter(pl.col("series_id").is_in(list(CPI.values())))
@@ -97,5 +97,5 @@ def ppp(spot: pl.DataFrame, base: tuple[date, date] = BASE) -> pl.DataFrame:
         "date",
         *PPP_CCY,
         *(fair[c].alias(f"{c}_fair") for c in PPP_CCY),
-        *(((fair[c] / pl.col(c) - 1) * 100).alias(f"{c}_dev") for c in PPP_CCY),
+        *(((1 - pl.col(c) / fair[c]) * 100).alias(f"{c}_val") for c in PPP_CCY),
     )

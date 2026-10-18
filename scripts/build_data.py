@@ -251,8 +251,7 @@ def build_fx() -> None:
         "g10": {"ccys": fx.G10, "spot": g10},
         "ppp": {
             "ccys": fx.PPP_CCY, "base": [d.isoformat() for d in fx.BASE], "cpi": fx.CPI,
-            "latest": ppp.row(-1, named=True),
-            "history": _records(ppp.group_by_dynamic("date", every="1w").agg(pl.all().last()).sort("date"), 4),
+            "history": _records(ppp.select("date", *(f"{c}_val" for c in fx.PPP_CCY)), 2),  # daily
         },
     }, "fx.json")
 
