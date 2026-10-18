@@ -43,6 +43,18 @@ FRED_SERIES = {
     "mortgage": {
         "US 30Y Fixed Rate Mortgage Average": "MORTGAGE30US",
     },
+    "inflation": {
+        "US Consumer Price Index": "CPIAUCNS",
+        "Euro Area Harmonised Consumer Price Index": "CP0000EZ19M086NEST",
+        "UK Consumer Price Index": "CP0000GBM086NEST",
+        "Japan Consumer Price Index": "JPNCPIALLMINMEI",
+        "Switzerland Consumer Price Index": "CP0000CHM086NEST",
+        "Canada Consumer Price Index": "CANCPIALLMINMEI",
+        "Australia Consumer Price Index": "AUSCPIALLQINMEI",
+        "New Zealand Consumer Price Index": "NZLCPIALLQINMEI",
+        "Norway Consumer Price Index": "CP0000NOM086NEST",
+        "Sweden Consumer Price Index": "CP0000SEM086NEST",
+    },
 }
 
 
