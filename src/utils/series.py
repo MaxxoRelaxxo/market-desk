@@ -1,4 +1,11 @@
+
+from datetime import date
+
+
+# --------------------------------------------------
 # FRED data
+# --------------------------------------------------
+
 FRED_SERIES = {
     "nominal": {
         "US Government Bond 2Y": "DGS2",
@@ -36,4 +43,83 @@ FRED_SERIES = {
     "mortgage": {
         "US 30Y Fixed Rate Mortgage Average": "MORTGAGE30US",
     },
+}
+
+
+# --------------------------------------------------
+# SOFR futures
+# --------------------------------------------------
+
+def generate_sofr_contracts(
+    n_contracts: int = 4,
+) -> dict[str, str]:
+
+    month_codes = {
+        3: "H",
+        6: "M",
+        9: "U",
+        12: "Z",
+    }
+
+    today = date.today()
+    year = today.year
+
+    contracts = {}
+
+    while len(contracts) < n_contracts:
+
+        for month, code in month_codes.items():
+
+            if (year, month) < (today.year, today.month):
+                continue
+
+            yy = str(year)[-2:]
+
+            name = f"sofr_{year}_{month:02d}"
+            ticker = f"SR3{code}{yy}.CME"
+
+            contracts[name] = ticker
+
+            if len(contracts) == n_contracts:
+                break
+
+        year += 1
+
+    return contracts
+
+
+# --------------------------------------------------
+# Yahoo Finance data
+# --------------------------------------------------
+
+YFINANCE_SERIES = {
+    "indices": {
+        "sp500": "^GSPC",
+        "dow_jones": "^DJI",
+        "nasdaq100": "^NDX",
+        "russell2000": "^RUT",
+        "vix": "^VIX",
+        "omx30": "^OMX",
+        "eurostoxx50": "^STOXX50E",
+        "nikkei225": "^N225",
+        "hang_seng": "^HSI",
+        "kospi": "^KS11",
+        "kosdaq": "^KQ11",
+    },
+    "energy": {
+        "wti": "CL=F",
+        "brent": "BZ=F",
+        "natural_gas": "NG=F",
+        "heating_oil": "HO=F",
+    },
+    "metals": {
+        "gold": "GC=F",
+        "silver": "SI=F",
+        "copper": "HG=F",
+        "platinum": "PL=F",
+        "palladium": "PA=F",
+    },
+    "sofr": generate_sofr_contracts(
+        n_contracts=9,
+    ),
 }
