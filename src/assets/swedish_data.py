@@ -33,6 +33,7 @@ SWEA_SERIES = [
     "SEKNZDPMI",
     "SEKGBPPMI",
     "SEKJPYPMI",
+    "SEKHKDPMI",
     "SECBREPOEFF",
     "SEGVB2YC",
     "SEGVB5YC",
