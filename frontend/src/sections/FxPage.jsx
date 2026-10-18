@@ -215,15 +215,6 @@ function Ppp({ ppp }) {
           </AreaChart>
         </ResponsiveContainer>
       </Card>
-      <div className="info">
-        <b>Model</b>
-        <p>
-          Relative PPP: fair CCY/SEK = average spot over {b0}–{b1} × (CPI Sweden / its base average) ÷ (CPI foreign / its base average).
-          Valuation = −(spot ÷ fair − 1), the Bloomberg SEK PPP % over/undervalued convention. CPI: HICP for Sweden, the euro area and Norway,
-          CPI-U for the US (monthly, FRED), carried forward to the daily Riksbank fixing. The level depends on the base period: it assumes SEK
-          was fairly valued on average then.
-        </p>
-      </div>
     </Block>
   );
 }
