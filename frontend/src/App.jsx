@@ -17,6 +17,7 @@ export default function App() {
 
   useEffect(() => {
     window.location.hash = active;
+    window.scrollTo(0, 0);
   }, [active]);
 
   useEffect(() => {

@@ -43,14 +43,13 @@ export default function HomePage({ go }) {
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   return (
     <>
-      <section className="hero">
-        <video className="hero-video" src={`${MEDIA}hero.mp4`} poster={`${MEDIA}hero.jpg`} autoPlay={!reduced} muted loop playsInline aria-hidden="true" />
-        <div className="hero-shade" />
-        <div className="hero-body">
-          <div className="hero-kicker">STOCKHOLM · FRANKFURT · NEW YORK</div>
+      <section className="landing">
+        <video className="landing-video" src={`${MEDIA}hero.mp4`} poster={`${MEDIA}hero.jpg`} autoPlay={!reduced} muted loop playsInline aria-hidden="true" />
+        <div className="landing-shade" />
+        <div className="landing-body">
           <h1>Market Desk</h1>
-          <p>Rates, FX, commodities and macro – updated daily from central bank and official sources, with models on top.</p>
-          <div className="hero-cta">
+          <p>Market intelligence built on official data. Rates, FX, commodities and macro from central banks and statistical agencies, updated daily.</p>
+          <div className="landing-cta">
             <button className="cta" onClick={() => go("rates")}>Open Rates</button>
             <button className="cta ghost" onClick={() => document.getElementById("desks").scrollIntoView({ behavior: "smooth" })}>What's inside ↓</button>
           </div>
