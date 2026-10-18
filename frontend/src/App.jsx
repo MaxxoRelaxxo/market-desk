@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { ErrorBoundary } from "./components/ui";
+import HomePage from "./sections/HomePage";
 import RatesPage from "./sections/RatesPage";
 
 // Theme registry: add a page component + build function(s) in scripts/build_data.py.
 const THEMES = [
+  { id: "home", label: "HOME", Component: HomePage, hidden: true },
   { id: "rates", key: "F1", label: "RATES", Component: RatesPage },
 ];
 
@@ -38,9 +40,9 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <div className="brand">MARKET DESK</div>
+        <button className="brand" onClick={() => setActive("home")}>MARKET DESK</button>
         <nav className="nav">
-          {THEMES.map((t) => (
+          {THEMES.filter((t) => !t.hidden).map((t) => (
             <button key={t.id} className={active === t.id ? "active" : ""} onClick={() => setActive(t.id)}>
               <span className="fkey">{t.key}</span> {t.label}
             </button>
@@ -48,9 +50,9 @@ export default function App() {
         </nav>
         <div className="clock">{now.toLocaleString("en-GB")}</div>
       </header>
-      <main className="page">
+      <main className={active === "home" ? "home" : "page"}>
         <ErrorBoundary key={active}>
-          <Component />
+          <Component go={setActive} />
         </ErrorBoundary>
       </main>
     </div>

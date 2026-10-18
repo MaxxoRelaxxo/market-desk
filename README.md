@@ -24,6 +24,7 @@ uv run python scripts/build_data.py          # all themes, or e.g. `... build_da
 cd frontend && npm install && npm run dev
 ```
 
+Landing page (`frontend/src/sections/HomePage.jsx`, default route, brand click): background video `frontend/public/media/hero.mp4` + desk cards.
 Pages (tabs, F1/F2…): **Rates** (`frontend/src/sections/RatesPage.jsx`), one scrolling page:
 overview tiles + levels/changes/range table (Sweden, euro area 10Y, US) → weekly development → curve analysis
 (government bonds vs chosen dates: Sweden SGB, US Treasuries)
