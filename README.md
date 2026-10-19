@@ -21,6 +21,7 @@ PYTHONPATH=src uv run python -c "from assets.ameco import save_ameco_parquet; sa
 PYTHONPATH=src uv run python -c "from assets.daily_yields import save_daily_parquet; print(save_daily_parquet())"
 PYTHONPATH=src uv run python -c "from assets.swedish_data import save_svea_parquet; save_svea_parquet()"
 PYTHONPATH=src uv run python -c "from assets.yfinance import save_yfinance_parquet; save_yfinance_parquet()"
+PYTHONPATH=src uv run python -c "from assets.cftc import save_cot_parquet; save_cot_parquet()"
 uv run python scripts/build_data.py          # all themes, or e.g. `... build_data.py se_rates`
 cd frontend && npm install && npm run dev
 ```
@@ -29,16 +30,31 @@ Landing page (`frontend/src/sections/HomePage.jsx`, default route, brand click):
 Pages (tabs, F1/F2…): **Rates** (`frontend/src/sections/RatesPage.jsx`), one scrolling page:
 overview tiles + levels/changes/range table (Sweden, euro area 10Y, US) → weekly development → curve analysis
 (government bonds vs chosen dates: Sweden SGB, US Treasuries)
-→ EGB relative value → Swedish term premium (ACM).
+→ CFTC positioning (UST 2Y/10Y) → EGB relative value → Swedish term premium (ACM).
 Data: `se_rates.json`, `egb.json`, `us_rates.json`, `curves.json` (`build_se_rates`, `build_egb`, `build_us_rates`, `build_curves`).
 **FX & Commodities** (`frontend/src/sections/FxPage.jsx`, F2, data `fx.json` from `build_fx`, model `src/models/fx.py`):
-overview tiles + levels/% changes/range table → weekly development → G10 cross matrix → SEK vs PPP.
+overview tiles + levels/% changes/range table → weekly development → G10 cross matrix → SEK vs PPP → CFTC positioning (JPY, EUR).
 
 - FX: Riksbank fixings (`SEK{CCY}PMI`, SEK per unit). EUR/USD and USD/JPY are crosses of the SEK fixings.
 - Commodities: yfinance front-month futures (Brent `BZ=F`, WTI `CL=F`, gold `GC=F`, silver `SI=F`, copper `HG=F`).
 - G10 matrix: cell (row, col) = units of col per 1 row; % change > 0 = row currency stronger. Avg = row vs the other nine.
 - SEK PPP (relative): fair CCY/SEK = base spot · (CPI_SE / base) / (CPI_F / base), base 2000–2009 (`fx.BASE`).
   Valuation = −(spot / fair − 1), as Bloomberg SEK PPP % over/undervalued: < 0 = SEK undervalued. CPI: HICP (SE, EA, NO), CPI-U (US) via FRED.
+
+### CFTC positioning (`src/assets/cftc.py`, `src/models/cot.py`, `frontend/src/sections/CotSection.jsx`)
+
+Traders in Financial Futures (TFF), futures only, Socrata dataset `gpe5-46if` on publicreporting.cftc.gov (no key).
+One report type across the full history (no Legacy/Disaggregated mix). Contracts in `COT_CONTRACTS`
+(`src/utils/series.py`): UST 2Y `042601`, UST 10Y `043602`, JPY `097741`, EUR `099741`.
+
+- Gross long, short and net per group (leveraged funds, asset managers, dealers, other reportables, non-reportables);
+  % OI, z-score and percentile vs the last 156 weeks; 1W change in gross long and short.
+- Views: net of a chosen group vs the front-month future (`COT_FUTURES`, yfinance: ZT=F, ZN=F, 6J=F, 6E=F) with
+  3Y mean ± 2σ bands; gross long/short; net of all groups. Units k contracts or % OI, weekly or 4W MA.
+- FX futures are USD per unit of the currency: JPY is shown as USD/JPY on an inverted axis (net long yen = short
+  USD/JPY); EUR future = EUR/USD. Positions as of Tuesday, published Friday.
+- Data `cot.json` (`build_cot`), shown on Rates (UST) and FX (JPY, EUR). Add a contract: its code in
+  `COT_CONTRACTS`, its future in `COT_FUTURES`, price label in `cot.PRICE`, label in a page's `<CotSection contracts={[...]} />`.
 
 Add a page (Macro): `build_<theme>()` in `scripts/build_data.py` + a component in `frontend/src/sections/` registered in `THEMES` in `App.jsx`.
 

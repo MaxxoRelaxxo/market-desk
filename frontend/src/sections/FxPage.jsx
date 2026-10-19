@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Block, Card, StatCard, Status, SubNav, TimeTip, Toggle, chgCls, useSpy } from "../components/ui";
+import CotSection from "./CotSection";
 import { COLORS, axis, fmt, signed, timeAxis, useData, withT } from "../lib";
 
-const BLOCKS = [["overview", "OVERVIEW"], ["development", "DEVELOPMENT"], ["g10", "G10 MATRIX"], ["ppp", "SEK PPP"]];
+const BLOCKS = [["overview", "OVERVIEW"], ["development", "DEVELOPMENT"], ["g10", "G10 MATRIX"], ["ppp", "SEK PPP"], ["cot", "POSITIONING"]];
 const SHORT = { "BZ=F": "Brent", "CL=F": "WTI", "GC=F": "Gold", "SI=F": "Silver", "HG=F": "Copper" };
 const DIGITS = { "USD/SEK": 4, "EUR/SEK": 4, "EUR/USD": 4, "USD/JPY": 2, "GC=F": 1, "HG=F": 3 };
 const CHANGES = [["chg_prev", "1D"], ["chg_w1", "1W"], ["chg_m1", "1M"], ["chg_ytd", "YTD"], ["chg_y1", "1Y"]];
@@ -234,6 +235,8 @@ export default function FxPage() {
       <Development d={d} />
       <Matrix g10={d.g10} />
       <Ppp ppp={d.ppp} />
+      <CotSection contracts={["JPY", "EUR"]}
+        note="CME FX futures are USD per unit of the currency: net long JPY = short USD/JPY (shown on an inverted axis), net long EUR = long EUR/USD." />
     </div>
   );
 }
