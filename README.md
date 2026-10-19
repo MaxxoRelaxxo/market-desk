@@ -33,7 +33,7 @@ overview tiles + levels/changes/range table (Sweden, euro area 10Y, US) → week
 → CFTC positioning (UST 2Y/10Y) → EGB relative value → Swedish term premium (ACM).
 Data: `se_rates.json`, `egb.json`, `us_rates.json`, `curves.json` (`build_se_rates`, `build_egb`, `build_us_rates`, `build_curves`).
 **FX & Commodities** (`frontend/src/sections/FxPage.jsx`, F2, data `fx.json` from `build_fx`, model `src/models/fx.py`):
-overview tiles + levels/% changes/range table → weekly development → G10 cross matrix → SEK vs PPP → CFTC positioning (JPY).
+overview tiles + levels/% changes/range table → weekly development → G10 cross matrix → SEK vs PPP → CFTC positioning (JPY, EUR).
 
 - FX: Riksbank fixings (`SEK{CCY}PMI`, SEK per unit). EUR/USD and USD/JPY are crosses of the SEK fixings.
 - Commodities: yfinance front-month futures (Brent `BZ=F`, WTI `CL=F`, gold `GC=F`, silver `SI=F`, copper `HG=F`).
@@ -44,11 +44,17 @@ overview tiles + levels/% changes/range table → weekly development → G10 cro
 ### CFTC positioning (`src/assets/cftc.py`, `src/models/cot.py`, `frontend/src/sections/CotSection.jsx`)
 
 Traders in Financial Futures (TFF), futures only, Socrata dataset `gpe5-46if` on publicreporting.cftc.gov (no key).
-Contracts in `COT_CONTRACTS` (`src/utils/series.py`): UST 2Y `042601`, UST 10Y `043602`, JPY `097741`.
-Net = long − short per group (leveraged funds, asset managers, dealers, other reportables, non-reportables);
-% OI, z-score and percentile vs the last 156 weeks. Positions as of Tuesday, published Friday.
-JPY futures are USD per JPY: net long = long yen = short USD/JPY. Data `cot.json` (`build_cot`), shown on both pages.
-Add a contract: its code in `COT_CONTRACTS` + its label in a page's `<CotSection contracts={[...]} />`.
+One report type across the full history (no Legacy/Disaggregated mix). Contracts in `COT_CONTRACTS`
+(`src/utils/series.py`): UST 2Y `042601`, UST 10Y `043602`, JPY `097741`, EUR `099741`.
+
+- Gross long, short and net per group (leveraged funds, asset managers, dealers, other reportables, non-reportables);
+  % OI, z-score and percentile vs the last 156 weeks; 1W change in gross long and short.
+- Views: net of a chosen group vs the front-month future (`COT_FUTURES`, yfinance: ZT=F, ZN=F, 6J=F, 6E=F) with
+  3Y mean ± 2σ bands; gross long/short; net of all groups. Units k contracts or % OI, weekly or 4W MA.
+- FX futures are USD per unit of the currency: JPY is shown as USD/JPY on an inverted axis (net long yen = short
+  USD/JPY); EUR future = EUR/USD. Positions as of Tuesday, published Friday.
+- Data `cot.json` (`build_cot`), shown on Rates (UST) and FX (JPY, EUR). Add a contract: its code in
+  `COT_CONTRACTS`, its future in `COT_FUTURES`, price label in `cot.PRICE`, label in a page's `<CotSection contracts={[...]} />`.
 
 Add a page (Macro): `build_<theme>()` in `scripts/build_data.py` + a component in `frontend/src/sections/` registered in `THEMES` in `App.jsx`.
 

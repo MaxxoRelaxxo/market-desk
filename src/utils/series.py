@@ -101,6 +101,24 @@ def generate_sofr_contracts(
 
 
 # --------------------------------------------------
+# CFTC Commitments of Traders (TFF, futures only)
+# --------------------------------------------------
+
+COT_CONTRACTS = {  # label: CFTC contract market code
+    "UST 2Y": "042601",
+    "UST 10Y": "043602",
+    "JPY": "097741",
+    "EUR": "099741",
+}
+COT_FUTURES = {  # label: yfinance continuous front-month future (price overlay)
+    "UST 2Y": "ZT=F",
+    "UST 10Y": "ZN=F",
+    "JPY": "6J=F",
+    "EUR": "6E=F",
+}
+
+
+# --------------------------------------------------
 # Yahoo Finance data
 # --------------------------------------------------
 
@@ -131,18 +149,8 @@ YFINANCE_SERIES = {
         "platinum": "PL=F",
         "palladium": "PA=F",
     },
+    "cot_futures": COT_FUTURES,
     "sofr": generate_sofr_contracts(
         n_contracts=9,
     ),
-}
-
-
-# --------------------------------------------------
-# CFTC Commitments of Traders (TFF, futures only)
-# --------------------------------------------------
-
-COT_CONTRACTS = {  # label: CFTC contract market code
-    "UST 2Y": "042601",
-    "UST 10Y": "043602",
-    "JPY": "097741",
 }

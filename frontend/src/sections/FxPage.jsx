@@ -235,8 +235,8 @@ export default function FxPage() {
       <Development d={d} />
       <Matrix g10={d.g10} />
       <Ppp ppp={d.ppp} />
-      <CotSection contracts={["JPY"]}
-        note="CME yen futures are USD per JPY: net long = long yen = short USD/JPY." />
+      <CotSection contracts={["JPY", "EUR"]}
+        note="CME FX futures are USD per unit of the currency: net long JPY = short USD/JPY (shown on an inverted axis), net long EUR = long EUR/USD." />
     </div>
   );
 }

@@ -257,23 +257,25 @@ def build_fx() -> None:
 
 
 # ============================================================
-# CFTC POSITIONING (TFF): UST 2Y/10Y, JPY
+# CFTC POSITIONING (TFF): UST 2Y/10Y, JPY, EUR
 # ============================================================
 
 def build_cot() -> None:
-    df = cot.net()
-    snap = cot.snapshot(df)
-    history = {
-        c: g.pivot(on="group", index=["date", "oi"], values="net").select("date", "oi", *cot.GROUPS)
-            .with_columns(pl.exclude("date").cast(pl.Int64)).sort("date").to_dicts()
-        for (c,), g in df.group_by("contract", maintain_order=True)
-    }
+    df = cot.positions()
+    wide = df.pivot(on="group", index=["date", "contract", "oi"], values=["long", "short"])
+    wide = cot.prices(wide).sort("contract", "date")
     _dump({
         "asof": df["date"].max(),
         "groups": cot.GROUPS,
         "window": cot.WINDOW,
-        "latest": _records(snap, 2),
-        "history": history,  # weekly net contracts per group
+        "price": {c: {"label": lbl, "invert": inv, "digits": n} for c, (lbl, inv, n) in cot.PRICE.items()},
+        "latest": _records(cot.snapshot(df), 2),
+        # weekly, columnar per contract: date | oi | price | long_<group> | short_<group> (contracts)
+        "history": {
+            c: g.drop("contract").with_columns(pl.exclude("date", "price").cast(pl.Int64), pl.col("price").round(5))
+            .to_dict(as_series=False)
+            for (c,), g in wide.group_by("contract", maintain_order=True)
+        },
     }, "cot.json")
 
 
