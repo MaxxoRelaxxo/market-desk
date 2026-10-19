@@ -135,3 +135,14 @@ YFINANCE_SERIES = {
         n_contracts=9,
     ),
 }
+
+
+# --------------------------------------------------
+# CFTC Commitments of Traders (TFF, futures only)
+# --------------------------------------------------
+
+COT_CONTRACTS = {  # label: CFTC contract market code
+    "UST 2Y": "042601",
+    "UST 10Y": "043602",
+    "JPY": "097741",
+}

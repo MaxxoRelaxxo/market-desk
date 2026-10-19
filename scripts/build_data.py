@@ -11,7 +11,7 @@ import polars as pl
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from models import acm, egb, fx
+from models import acm, cot, egb, fx
 from utils.series import FRED_SERIES
 
 DATA_DIR = ROOT / "src" / "data"
@@ -256,8 +256,29 @@ def build_fx() -> None:
     }, "fx.json")
 
 
+# ============================================================
+# CFTC POSITIONING (TFF): UST 2Y/10Y, JPY
+# ============================================================
+
+def build_cot() -> None:
+    df = cot.net()
+    snap = cot.snapshot(df)
+    history = {
+        c: g.pivot(on="group", index=["date", "oi"], values="net").select("date", "oi", *cot.GROUPS)
+            .with_columns(pl.exclude("date").cast(pl.Int64)).sort("date").to_dicts()
+        for (c,), g in df.group_by("contract", maintain_order=True)
+    }
+    _dump({
+        "asof": df["date"].max(),
+        "groups": cot.GROUPS,
+        "window": cot.WINDOW,
+        "latest": _records(snap, 2),
+        "history": history,  # weekly net contracts per group
+    }, "cot.json")
+
+
 THEMES = {"us_rates": build_us_rates, "egb": build_egb, "se_rates": build_se_rates, "curves": build_curves,
-          "fx": build_fx}
+          "fx": build_fx, "cot": build_cot}
 
 
 if __name__ == "__main__":

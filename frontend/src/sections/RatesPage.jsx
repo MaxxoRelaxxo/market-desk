@@ -4,10 +4,11 @@ import {
 } from "recharts";
 import { Block, Card, Flag, StatCard, Status, SubNav, Tip, TimeTip, Toggle, chgCls, useSpy } from "../components/ui";
 import { COLORS, axis, fmt, signed, timeAxis, useData, withT } from "../lib";
+import CotSection from "./CotSection";
 import EgbSection from "./EgbSection";
 
 const BLOCKS = [
-  ["overview", "OVERVIEW"], ["development", "DEVELOPMENT"], ["curve", "CURVE"], ["egb", "EGB RV"], ["tp", "SE TERM PREMIUM"],
+  ["overview", "OVERVIEW"], ["development", "DEVELOPMENT"], ["curve", "CURVE"], ["cot", "POSITIONING"], ["egb", "EGB RV"], ["tp", "SE TERM PREMIUM"],
 ];
 const US_SHORT = {
   DGS2: "UST 2Y", DGS5: "UST 5Y", DGS7: "UST 7Y", DGS10: "UST 10Y", DGS30: "UST 30Y",
@@ -361,6 +362,7 @@ export default function RatesPage() {
       <Overview {...args} />
       <Development {...args} />
       <CurveAnalysis {...args} />
+      <CotSection contracts={["UST 2Y", "UST 10Y"]} />
       {egb.data && <section id="egb" className="block"><EgbSection /></section>}
       <TermPremium {...args} />
     </div>

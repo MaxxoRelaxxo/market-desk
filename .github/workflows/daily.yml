@@ -49,6 +49,9 @@ jobs:
       - name: Yahoo Finance (commodities, indices)
         continue-on-error: true
         run: uv run python -c "from assets.yfinance import save_yfinance_parquet; save_yfinance_parquet()"
+      - name: CFTC Commitments of Traders
+        continue-on-error: true
+        run: uv run python -c "from assets.cftc import save_cot_parquet; save_cot_parquet()"
 
       - run: uv run python scripts/build_data.py
 
