@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.14"
 resolution-markers = [
     "sys_platform == 'win32'",
@@ -596,6 +596,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "altair" },
+    { name = "curl-cffi" },
     { name = "httpx" },
     { name = "ipython" },
     { name = "marimo" },
@@ -618,6 +619,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "altair", specifier = ">=6.3.0" },
+    { name = "curl-cffi", specifier = ">=0.16.3" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "ipython", specifier = ">=9.17.1" },
     { name = "marimo", specifier = ">=0.25.1" },

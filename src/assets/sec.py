@@ -5,6 +5,7 @@ SEC EDGAR XBRL company facts (data.sec.gov, no key): net income, operating cash 
 - Companies `SEC_COMPANIES`, tag candidates per metric `SEC_TAGS` (rank 0 = preferred).
 - Values are as filed: 3M or year-to-date (cash flow is YTD only); `models/equity.py` derives discrete quarters.
 - SEC requires a User-Agent with name and email, else 403: env `SEC_USER_AGENT` (or .env). Max 10 requests/s.
+- curl_cffi, not requests: SEC's Akamai answers 403 to python-requests while curl with the same User-Agent passes.
 
 Output: src/data/sec_facts.parquet  ->  ticker | metric | rank | start | end | val | filed
 """
@@ -15,7 +16,7 @@ import time
 from pathlib import Path
 
 import polars as pl
-import requests
+from curl_cffi import requests
 from dotenv import load_dotenv
 
 from utils.series import SEC_COMPANIES, SEC_TAGS
