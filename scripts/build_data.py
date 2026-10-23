@@ -298,6 +298,7 @@ def build_equity() -> None:
         bn = pl.col(equity.METRICS) / 1e9
         fundamentals = {
             "baskets": equity.SEC_COMPANIES,
+            "names": equity.NAMES,
             "ttm": _records(equity.baskets(t).with_columns(bn), 2),
             "companies": _records(equity.snapshot(t).with_columns(bn), 2),
         }

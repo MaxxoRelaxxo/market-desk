@@ -144,7 +144,7 @@ function Fundamentals({ f }) {
         const r = latest(b);
         return r && (
           <div key={b}>
-            <div className="stats-label">{b.toUpperCase()}<span className="muted">{f.baskets[b] && Object.keys(f.baskets[b]).join(" · ")}</span></div>
+            <div className="stats-label">{b.toUpperCase()}<span className="muted">{Object.keys(f.baskets[b]).map((t) => f.names[t] ?? t).join(" · ")}</span></div>
             <div className="stats">
               {METRICS.map(([m, name]) => (
                 <StatCard key={m} label={`${name} · TTM ${r.date.slice(0, 7)}`} value={r[m]} digits={0} unit="bn"
@@ -192,7 +192,7 @@ function Fundamentals({ f }) {
               <tr key={b} className="group"><td colSpan={9}>{b.toUpperCase()}</td></tr>,
               ...f.companies.filter((r) => r.basket === b).map((r) => (
                 <tr key={r.ticker}>
-                  <td>{r.ticker}</td>
+                  <td>{f.names[r.ticker] ?? r.ticker}</td>
                   <td className="muted">{r.end}</td>
                   <td>{fmt(r.ni, 1)}</td>
                   <td className={chgCls(r.ni_yoy)}>{signed(r.ni_yoy, 0)}</td>

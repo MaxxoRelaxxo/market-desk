@@ -34,6 +34,11 @@ INDICES = {  # yfinance ticker: (label, region)
     "^KQ11": ("KOSDAQ", "Asia"),
     "^VIX": ("VIX", "Volatility"),
 }
+NAMES = {  # ticker: display name
+    "MSFT": "Microsoft", "AMZN": "Amazon", "GOOGL": "Alphabet", "META": "Meta", "ORCL": "Oracle",
+    "NVDA": "Nvidia", "AVGO": "Broadcom", "AMD": "AMD", "QCOM": "Qualcomm", "MU": "Micron", "INTC": "Intel",
+    "TXN": "Texas Instruments",
+}
 METRICS = ["ni", "ocf", "capex", "fcf"]
 BASKET = {t: b for b, members in SEC_COMPANIES.items() for t in members}
 
