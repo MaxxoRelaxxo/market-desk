@@ -4,7 +4,7 @@ SEC EDGAR XBRL company facts (data.sec.gov, no key): net income, operating cash 
 - `companyfacts/CIK##########.json`: us-gaap duration facts in USD from 10-K/10-Q, incl. restated comparatives.
 - Companies `SEC_COMPANIES`, tag candidates per metric `SEC_TAGS` (rank 0 = preferred).
 - Values are as filed: 3M or year-to-date (cash flow is YTD only); `models/equity.py` derives discrete quarters.
-- SEC asks for a User-Agent with contact info: env `SEC_USER_AGENT` (default: repo URL). Max 10 requests/s.
+- SEC requires a User-Agent with name and email, else 403: env `SEC_USER_AGENT` (or .env). Max 10 requests/s.
 
 Output: src/data/sec_facts.parquet  ->  ticker | metric | rank | start | end | val | filed
 """
@@ -16,18 +16,20 @@ from pathlib import Path
 
 import polars as pl
 import requests
+from dotenv import load_dotenv
 
 from utils.series import SEC_COMPANIES, SEC_TAGS
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:0>10}.json"
-UA = os.environ.get("SEC_USER_AGENT", "market-desk github.com/MaxxoRelaxxo/market-desk")
 
 logger = logging.getLogger(__name__)
 
+load_dotenv()
 
-def fetch_company(ticker: str, cik: str) -> pl.DataFrame:
-    r = requests.get(URL.format(cik=cik), headers={"User-Agent": UA}, timeout=60)
+
+def fetch_company(ticker: str, cik: str, ua: str) -> pl.DataFrame:
+    r = requests.get(URL.format(cik=cik), headers={"User-Agent": ua}, timeout=60)
     r.raise_for_status()
     gaap = r.json()["facts"].get("us-gaap", {})
     rows = [
@@ -43,10 +45,13 @@ def fetch_company(ticker: str, cik: str) -> pl.DataFrame:
 
 
 def save_sec_parquet() -> Path:
+    ua = os.environ.get("SEC_USER_AGENT")
+    if not ua or "@" not in ua:
+        raise RuntimeError('Set SEC_USER_AGENT="Name email@domain" (SEC returns 403 without an email)')
     frames = []
     for ticker, cik in {t: c for basket in SEC_COMPANIES.values() for t, c in basket.items()}.items():
         try:
-            frames.append(fetch_company(ticker, cik))
+            frames.append(fetch_company(ticker, cik, ua))
         except Exception as exc:
             logger.warning("SEC %s failed: %s", ticker, exc)
         time.sleep(0.2)

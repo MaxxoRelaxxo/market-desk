@@ -23,6 +23,7 @@ jobs:
       PYTHONPATH: src
       FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
       RIKSBANK_API_KEY: ${{ secrets.RIKSBANK_API_KEY }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
     steps:
       - uses: actions/checkout@v4
       # Last successful data; a failing source falls back to it

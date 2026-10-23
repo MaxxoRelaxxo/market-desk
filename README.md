@@ -64,7 +64,7 @@ global; YTD–10Y) → hyperscalers vs semiconductors.
 
 - Indices: yfinance daily closes, local currency (`equity.INDICES`: ticker, label, region). DAX is a total return index.
 - Fundamentals: SEC EDGAR XBRL company facts (`src/assets/sec.py`, data.sec.gov, no key; env `SEC_USER_AGENT`
-  optional). Companies and baskets in `SEC_COMPANIES`, us-gaap tag candidates in `SEC_TAGS` (`src/utils/series.py`).
+  = "Name email" required, SEC answers 403 without it; repo secret of the same name for the workflow). Companies and baskets in `SEC_COMPANIES`, us-gaap tag candidates in `SEC_TAGS` (`src/utils/series.py`).
   Net income, operating cash flow, capex (purchases of PP&E); FCF = OCF − capex.
 - Discrete quarters from as-filed 3M/YTD facts (cash flow is YTD only: Q = diff of consecutive YTD with the same start),
   TTM = last 4 quarters, mapped to the calendar quarter of the fiscal quarter's midpoint. Basket = sum of TTM over
