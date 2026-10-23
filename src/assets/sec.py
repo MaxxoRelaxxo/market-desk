@@ -30,7 +30,8 @@ load_dotenv()
 
 def fetch_company(ticker: str, cik: str, ua: str) -> pl.DataFrame:
     r = requests.get(URL.format(cik=cik), headers={"User-Agent": ua}, timeout=60)
-    r.raise_for_status()
+    if not r.ok:  # SEC/Akamai put the reason in the body
+        raise RuntimeError(f"HTTP {r.status_code}: {' '.join(r.text.split())[:300]}")
     gaap = r.json()["facts"].get("us-gaap", {})
     rows = [
         {"ticker": ticker, "metric": m, "rank": i, "start": f["start"], "end": f["end"], "val": f["val"], "filed": f["filed"]}
