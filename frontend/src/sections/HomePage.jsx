@@ -26,6 +26,18 @@ const DESKS = [
     ],
   },
   {
+    id: "equity",
+    label: "Equity",
+    status: "live",
+    lead: "Global indices and the AI capex trade in earnings and cash flow.",
+    items: [
+      "US, Europe and Asia indices: levels, changes and ranges",
+      "Development rebased to 100: YTD to 10Y",
+      "Hyperscalers vs semiconductors: net income and free cash flow",
+      "Capex and cash conversion by company (SEC filings)",
+    ],
+  },
+  {
     id: "macro",
     label: "Macro Monitor",
     status: "soon",

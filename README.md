@@ -22,6 +22,7 @@ PYTHONPATH=src uv run python -c "from assets.daily_yields import save_daily_parq
 PYTHONPATH=src uv run python -c "from assets.swedish_data import save_svea_parquet; save_svea_parquet()"
 PYTHONPATH=src uv run python -c "from assets.yfinance import save_yfinance_parquet; save_yfinance_parquet()"
 PYTHONPATH=src uv run python -c "from assets.cftc import save_cot_parquet; save_cot_parquet()"
+PYTHONPATH=src uv run python -c "from assets.sec import save_sec_parquet; save_sec_parquet()"
 uv run python scripts/build_data.py          # all themes, or e.g. `... build_data.py se_rates`
 cd frontend && npm install && npm run dev
 ```
@@ -55,6 +56,20 @@ One report type across the full history (no Legacy/Disaggregated mix). Contracts
   USD/JPY); EUR future = EUR/USD. Positions as of Tuesday, published Friday.
 - Data `cot.json` (`build_cot`), shown on Rates (UST) and FX (JPY, EUR). Add a contract: its code in
   `COT_CONTRACTS`, its future in `COT_FUTURES`, price label in `cot.PRICE`, label in a page's `<CotSection contracts={[...]} />`.
+
+### Equity (`frontend/src/sections/EquityPage.jsx`, F3, data `equity.json` from `build_equity`, model `src/models/equity.py`)
+
+Overview tiles + levels/% changes/range table by region → weekly development rebased to 100 (US, Europe, Asia,
+global; YTD–10Y) → hyperscalers vs semiconductors.
+
+- Indices: yfinance daily closes, local currency (`equity.INDICES`: ticker, label, region). DAX is a total return index.
+- Fundamentals: SEC EDGAR XBRL company facts (`src/assets/sec.py`, data.sec.gov, no key; env `SEC_USER_AGENT`
+  = "Name email" required, SEC answers 403 without it; repo secret of the same name for the workflow). Companies and baskets in `SEC_COMPANIES`, us-gaap tag candidates in `SEC_TAGS` (`src/utils/series.py`).
+  Net income, operating cash flow, capex (purchases of PP&E); FCF = OCF − capex.
+- Discrete quarters from as-filed 3M/YTD facts (cash flow is YTD only: Q = diff of consecutive YTD with the same start),
+  TTM = last 4 quarters, mapped to the calendar quarter of the fiscal quarter's midpoint. Basket = sum of TTM over
+  members, only quarters where all members have reported. US filers only (TSMC, ASML file 20-F/6-K).
+- Indices build without `sec_facts.parquet`; the fundamentals block then shows a hint.
 
 Add a page (Macro): `build_<theme>()` in `scripts/build_data.py` + a component in `frontend/src/sections/` registered in `THEMES` in `App.jsx`.
 
