@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ErrorBoundary } from "./components/ui";
 import HomePage from "./sections/HomePage";
+import EquityPage from "./sections/EquityPage";
 import FxPage from "./sections/FxPage";
 import RatesPage from "./sections/RatesPage";
 
@@ -9,6 +10,7 @@ const THEMES = [
   { id: "home", label: "HOME", Component: HomePage, hidden: true },
   { id: "rates", key: "F1", label: "RATES", Component: RatesPage },
   { id: "fx", key: "F2", label: "FX & CMDTY", Component: FxPage },
+  { id: "equity", key: "F3", label: "EQUITY", Component: EquityPage },
 ];
 
 const initial = () => THEMES.find((t) => t.id === window.location.hash.slice(1))?.id ?? THEMES[0].id;

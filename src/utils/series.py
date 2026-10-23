@@ -119,6 +119,22 @@ COT_FUTURES = {  # label: yfinance continuous front-month future (price overlay)
 
 
 # --------------------------------------------------
+# SEC EDGAR fundamentals (XBRL company facts)
+# --------------------------------------------------
+
+SEC_COMPANIES = {  # basket: {ticker: CIK}
+    "Hyperscalers": {"MSFT": "789019", "AMZN": "1018724", "GOOGL": "1652044", "META": "1326801", "ORCL": "1341439"},
+    "Semiconductors": {"NVDA": "1045810", "AVGO": "1730168", "AMD": "2488", "QCOM": "804328", "MU": "723125",
+                       "INTC": "50863", "TXN": "97476"},
+}
+SEC_TAGS = {  # metric: us-gaap tags, first = preferred (companies switch tags over time)
+    "ni": ["NetIncomeLoss", "ProfitLoss"],
+    "ocf": ["NetCashProvidedByUsedInOperatingActivities", "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations"],
+    "capex": ["PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireProductiveAssets"],
+}
+
+
+# --------------------------------------------------
 # Yahoo Finance data
 # --------------------------------------------------
 
@@ -135,6 +151,9 @@ YFINANCE_SERIES = {
         "hang_seng": "^HSI",
         "kospi": "^KS11",
         "kosdaq": "^KQ11",
+        "dax": "^GDAXI",
+        "ftse100": "^FTSE",
+        "sox": "^SOX",
     },
     "energy": {
         "wti": "CL=F",

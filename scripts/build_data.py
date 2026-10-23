@@ -11,7 +11,7 @@ import polars as pl
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from models import acm, cot, egb, fx
+from models import acm, cot, egb, equity, fx
 from utils.series import FRED_SERIES
 
 DATA_DIR = ROOT / "src" / "data"
@@ -279,8 +279,46 @@ def build_cot() -> None:
     }, "cot.json")
 
 
+# ============================================================
+# EQUITY: indices, hyperscaler vs semiconductor fundamentals
+# ============================================================
+
+def build_equity() -> None:
+    idx = equity.indices()
+    ids = [i for i in equity.INDICES if i in set(idx["series_id"])]
+    labels = {i: equity.INDICES[i][0] for i in ids}
+    weekly = (idx.group_by_dynamic("date", every="1w", group_by="series_id").agg(pl.col("value").last())
+              .pivot(on="series_id", index="date", values="value").sort("date"))
+    regions = {}
+    for i in ids:
+        regions.setdefault(equity.INDICES[i][1], []).append(i)
+
+    try:  # fundamentals are optional: indices still build without sec_facts.parquet
+        t = equity.ttm(equity.quarters())
+        bn = pl.col(equity.METRICS) / 1e9
+        fundamentals = {
+            "baskets": equity.SEC_COMPANIES,
+            "ttm": _records(equity.baskets(t).with_columns(bn), 2),
+            "companies": _records(equity.snapshot(t).with_columns(bn), 2),
+        }
+        for r in equity.snapshot(t).iter_rows(named=True):
+            print(f"  {r['ticker']}: TTM to {r['end']} ({r['date']:%Y-%m})")
+    except FileNotFoundError as e:
+        print(f"  fundamentals skipped: {e}")
+        fundamentals = None
+
+    _dump({
+        "asof": idx["date"].max(),
+        "labels": labels,
+        "regions": regions,
+        "latest": _records(_latest(idx, ids, labels, pct=True), 2),
+        "history": _records(weekly.select("date", *ids), 2),
+        "fundamentals": fundamentals,
+    }, "equity.json")
+
+
 THEMES = {"us_rates": build_us_rates, "egb": build_egb, "se_rates": build_se_rates, "curves": build_curves,
-          "fx": build_fx, "cot": build_cot}
+          "fx": build_fx, "cot": build_cot, "equity": build_equity}
 
 
 if __name__ == "__main__":

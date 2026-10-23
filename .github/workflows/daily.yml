@@ -52,6 +52,9 @@ jobs:
       - name: CFTC Commitments of Traders
         continue-on-error: true
         run: uv run python -c "from assets.cftc import save_cot_parquet; save_cot_parquet()"
+      - name: SEC EDGAR fundamentals
+        continue-on-error: true
+        run: uv run python -c "from assets.sec import save_sec_parquet; save_sec_parquet()"
 
       - run: uv run python scripts/build_data.py
 
