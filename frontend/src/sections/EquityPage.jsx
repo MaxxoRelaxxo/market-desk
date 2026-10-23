@@ -8,7 +8,7 @@ const CHANGES = [["chg_prev", "1D"], ["chg_w1", "1W"], ["chg_m1", "1M"], ["chg_y
 const RANGES = [{ id: "ytd", label: "YTD" }, { id: 1, label: "1Y" }, { id: 3, label: "3Y" }, { id: 5, label: "5Y" }, { id: 10, label: "10Y" }];
 const FUND_RANGES = [{ id: 3, label: "3Y" }, { id: 5, label: "5Y" }, { id: 10, label: "10Y" }, { id: 99, label: "MAX" }];
 const GLOBAL = ["^GSPC", "^STOXX50E", "^OMX", "^N225", "^HSI"];
-const METRICS = [["ni", "Net income", undefined], ["fcf", "FCF", "5 3"]];
+const METRICS = [["ni", "Net income"], ["fcf", "FCF"]];
 const YEAR = 365.25 * 864e5;
 const digits = (v) => (v >= 1000 ? 0 : 2);
 
@@ -155,23 +155,29 @@ function Fundamentals({ f }) {
           </div>
         );
       })}
-      <Card title="NET INCOME VS FREE CASH FLOW (TTM, USD BN)"
-        note="Sum over the basket, quarters where every member has reported (latest quarter waits for the last reporter). FCF = operating cash flow − purchases of PP&E. Solid: net income, dashed: FCF. A widening gap = cash going into capex. Fiscal quarters mapped to the calendar quarter of their midpoint.">
-        <ResponsiveContainer width="100%" height={340}>
-          <LineChart data={data} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
-            <XAxis {...timeAxis(data)} />
-            <YAxis {...axis} width={44} domain={["auto", "auto"]} tickFormatter={(v) => fmt(v, 0)} />
-            <Tooltip content={<TimeTip digits={0} unit=" bn" />} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            <ReferenceLine y={0} stroke="var(--muted)" />
-            {baskets.flatMap((b, j) => METRICS.map(([m, name, dash]) => (
-              <Line key={key(b, m)} dataKey={key(b, m)} name={`${b} ${name}`} stroke={COLORS[j % COLORS.length]}
-                strokeDasharray={dash} strokeWidth={1.6} dot={false} connectNulls />
-            )))}
-          </LineChart>
-        </ResponsiveContainer>
-      </Card>
+      <div className="grid" style={{ marginBottom: 14 }}>
+        {baskets.map((b) => {
+          const rows = data.filter((r) => METRICS.some(([m]) => r[key(b, m)] != null));
+          return (
+            <Card key={b} title={`${b.toUpperCase()} · NET INCOME VS FCF (TTM, USD BN)`}
+              note="Sum over the basket, quarters where every member has reported. FCF = operating cash flow − purchases of PP&E; a widening gap = cash going into capex. Own y-axis per basket.">
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={rows} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
+                  <XAxis {...timeAxis(rows)} />
+                  <YAxis {...axis} width={44} domain={["auto", "auto"]} tickFormatter={(v) => fmt(v, 0)} />
+                  <Tooltip content={<TimeTip digits={0} unit=" bn" />} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <ReferenceLine y={0} stroke="var(--muted)" />
+                  {METRICS.map(([m, name], j) => (
+                    <Line key={m} dataKey={key(b, m)} name={name} stroke={COLORS[j % COLORS.length]} strokeWidth={1.6} dot={false} connectNulls />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </Card>
+          );
+        })}
+      </div>
       <Card title="BY COMPANY (TTM, USD BN)"
         note="Latest reported fiscal quarter per company (SEC 10-K/10-Q XBRL, as filed incl. restatements). FCF/NI = cash conversion. YoY vs TTM one year earlier; blank when the base is ≤ 0.">
         <div className="table-wrap"><table className="table">
