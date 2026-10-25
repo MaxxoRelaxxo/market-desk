@@ -78,7 +78,7 @@ Overview tiles + latest prints table (US, euro area, Sweden) → real GDP → in
 
 - Source `src/assets/macro.py` → `macro.parquet`: FRED (`MACRO_FRED`, first candidate id with data wins) and ECB Data
   Portal (`MACRO_ECB`, no key). A failing series is logged and skipped, the rest still save.
-- GDP: real, SA (GDPC1, Eurostat chain-linked volumes). QoQ, QoQ SAAR, YoY. Inflation: YoY of the index; 3M annualised
+- GDP: real, SA (US GDPC1, Sweden Eurostat via FRED, euro area ECB MNA chain-linked volumes). QoQ, QoQ SAAR, YoY. Inflation: YoY of the index; 3M annualised
   only for SA indices (US CPI/PCE). Euro area and Sweden: HICP and HICP ex energy, food, alcohol, tobacco (CPIF is SCB only).
 - Policy pricing, implied rate per horizon vs the policy rate, now / 1W / 1M ago:
   Fed = 3M SOFR futures (100 − price, IMM quarter), vs SOFR. Yahoo has no usable daily history per contract, so

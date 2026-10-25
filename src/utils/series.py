@@ -63,9 +63,8 @@ FRED_SERIES = {
 # --------------------------------------------------
 
 MACRO_FRED = {  # key: FRED candidates, first with data wins
-    # Real GDP, quarterly, SA (US: chained 2017 USD SAAR; EA/SE: Eurostat chain-linked volumes)
+    # Real GDP, quarterly, SA (US: chained 2017 USD SAAR; SE: Eurostat chain-linked volumes; EA: ECB below)
     "us_gdp": ["GDPC1"],
-    "ea_gdp": ["CLVMNACSCAB1GQEA20", "CLVMNACSCAB1GQEA19"],
     "se_gdp": ["CLVMNACSCAB1GQSE"],
     # Price indices, monthly (US SA; HICP NSA)
     "us_cpi": ["CPIAUCSL"],
@@ -82,16 +81,18 @@ MACRO_FRED = {  # key: FRED candidates, first with data wins
     "us_cleveland_1y": ["EXPINF1YR"],
 }
 
-MACRO_ECB = {  # key: ECB Data Portal "<flow>.<series key>"
-    "estr": "EST.B.EU000A2X2A25.WT",
+MACRO_ECB = {  # key: ECB Data Portal "<flow>.<series key>" candidates, first with data wins
+    # Euro area real GDP, chain-linked volumes, SA (MNA; I9 = euro area 20, I8 = euro area 19)
+    "ea_gdp": ["MNA.Q.Y.I9.W2.S1.S1.B.B1GQ._Z._Z._Z.EUR.LR.N", "MNA.Q.Y.I8.W2.S1.S1.B.B1GQ._Z._Z._Z.EUR.LR.N"],
+    "estr": ["EST.B.EU000A2X2A25.WT"],
     # AAA euro area government curve, instantaneous forwards (Svensson)
-    "ea_fwd_3m": "YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_3M",
-    "ea_fwd_6m": "YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_6M",
-    "ea_fwd_1y": "YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_1Y",
-    "ea_fwd_2y": "YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_2Y",
-    "ea_fwd_3y": "YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_3Y",
+    "ea_fwd_3m": ["YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_3M"],
+    "ea_fwd_6m": ["YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_6M"],
+    "ea_fwd_1y": ["YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_1Y"],
+    "ea_fwd_2y": ["YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_2Y"],
+    "ea_fwd_3y": ["YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_3Y"],
     # Survey of Professional Forecasters, HICP long-term (5Y ahead), mean point forecast
-    "ea_spf_lt": "SPF.Q.U2.HICP.POINT.LT.Q.AVG",
+    "ea_spf_lt": ["SPF.Q.U2.HICP.POINT.LT.Q.AVG"],
 }
 
 

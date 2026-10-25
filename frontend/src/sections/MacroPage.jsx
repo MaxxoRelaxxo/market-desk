@@ -57,7 +57,7 @@ function Overview({ d }) {
         );
       })}
       <Card title="LATEST PRINTS (%)"
-        note="GDP: real, seasonally adjusted, % vs previous quarter and vs a year earlier. Inflation: YoY % of the index (HICP for the euro area and Sweden, CPI/PCE for the US). Prev = previous release; Δ in pp. 5Y range: low–high of the last 5 years and where the latest print sits. FRED (BEA, BLS, Eurostat).">
+        note="GDP: real, seasonally adjusted, % vs previous quarter and vs a year earlier. Inflation: YoY % of the index (HICP for the euro area and Sweden, CPI/PCE for the US). Prev = previous release; Δ in pp. 5Y range: low–high of the last 5 years and where the latest print sits. FRED (BEA, BLS, Eurostat); euro area GDP: ECB.">
         <div className="table-wrap"><table className="table">
           <thead>
             <tr><th>Indicator</th><th>Period</th><th>Latest</th><th>Prev</th><th>Δ pp</th><th>1Y ago</th><th>5Y avg</th><th>5Y low</th><th>5Y range</th><th>5Y high</th></tr>

@@ -1,13 +1,13 @@
 """
-Macro: GDP, inflation and survey expectations (FRED), €STR, AAA forward curve and SPF (ECB Data Portal, no key).
+Macro: GDP, inflation and survey expectations (FRED), euro area GDP, €STR, AAA forward curve and SPF (ECB Data
+Portal, no key).
 
-- One series failing (moved or discontinued id) is logged and skipped; FRED keys take the first candidate with data.
+- One series failing (moved or discontinued id) is logged and skipped; each key takes the first candidate with data.
 - SOFR futures strip: yfinance has no usable daily history per contract, so each run appends the last close per
   live contract from market_data.parquet to sofr_strip.parquet (run after the yfinance step).
 """
 
 import io
-import logging
 from pathlib import Path
 
 import polars as pl
@@ -18,8 +18,6 @@ from utils.series import MACRO_ECB, MACRO_FRED
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 ECB_URL = "https://data-api.ecb.europa.eu/service/data"
-
-logger = logging.getLogger(__name__)
 
 
 def fetch_ecb(key: str, start: str = "2000-01-01") -> pl.DataFrame:
@@ -43,25 +41,21 @@ def fetch_ecb(key: str, start: str = "2000-01-01") -> pl.DataFrame:
 def fetch_macro(start: str = "2000-01-01") -> pl.DataFrame:
     """Long date | series_id (MACRO_* key) | value | source."""
     frames = []
-    for key, ids in MACRO_FRED.items():
-        for sid in ids:
-            try:
-                df = fetch_fred(sid, start).drop_nulls("value")
-            except RuntimeError as exc:
-                logger.warning("FRED %s: %s", sid, exc)
-                continue
-            if df.height:
-                frames.append(df.select("date", pl.lit(key).alias("series_id"), "value", pl.lit(f"FRED {sid}").alias("source")))
-                break
-        else:
-            print(f"macro {key}: no data ({', '.join(ids)})")
-    for key, sid in MACRO_ECB.items():
-        try:
-            df = fetch_ecb(sid, start)
-        except requests.RequestException as exc:
-            print(f"macro {key}: ECB {sid} failed ({exc})")
-            continue
-        frames.append(df.select("date", pl.lit(key).alias("series_id"), "value", pl.lit(f"ECB {sid}").alias("source")))
+    sources = [("FRED", MACRO_FRED, fetch_fred), ("ECB", MACRO_ECB, fetch_ecb)]
+    for name, series, fetch in sources:
+        for key, ids in series.items():
+            for sid in ids:
+                try:
+                    df = fetch(sid, start).drop_nulls("value")
+                except (RuntimeError, requests.RequestException) as exc:
+                    print(f"macro {key}: {name} {sid} failed ({exc})")
+                    continue
+                if df.height:
+                    frames.append(df.select("date", pl.lit(key).alias("series_id"), "value",
+                                            pl.lit(f"{name} {sid}").alias("source")))
+                    break
+            else:
+                print(f"macro {key}: no data ({', '.join(ids)})")
     if not frames:
         raise RuntimeError("No macro series could be fetched")
     return pl.concat(frames).sort("series_id", "date")
