@@ -2,7 +2,7 @@
 """
 Swedish data
 - Yields and FX rates from Riksbank.se
-- CPI from SCB (not yet implemented)
+- CPI/CPIF and GDP from SCB: src/assets/macro.py
 """
 
 import os

@@ -72,20 +72,25 @@ global; YTD–10Y) → hyperscalers vs semiconductors.
   members, only quarters where all members have reported. US filers only (TSMC, ASML file 20-F/6-K).
 - Indices build without `sec_facts.parquet`; the fundamentals block then shows a hint.
 
-### Macro (`frontend/src/sections/MacroPage.jsx`, F4, data `macro.json` from `build_macro`, model `src/models/macro.py`)
+### Macro: Growth (F4), Inflation (F5), CB Pricing (F6)
 
-Overview tiles + latest prints table (US, euro area, Sweden) → real GDP → inflation → policy pricing → inflation expectations.
+Pages `GrowthPage.jsx`, `InflationPage.jsx`, `PolicyPage.jsx` (shared table/helpers `components/macro.jsx`), data
+`growth.json`, `inflation.json`, `policy.json` from `build_growth`, `build_inflation`, `build_policy`, model `src/models/macro.py`.
 
-- Source `src/assets/macro.py` → `macro.parquet`: FRED (`MACRO_FRED`, first candidate id with data wins) and ECB Data
-  Portal (`MACRO_ECB`, no key). A failing series is logged and skipped, the rest still save.
-- GDP: real, SA (US GDPC1, Sweden Eurostat via FRED, euro area ECB MNA chain-linked volumes). QoQ, QoQ SAAR, YoY. Inflation: YoY of the index; 3M annualised
-  only for SA indices (US CPI/PCE). Euro area and Sweden: HICP and HICP ex energy, food, alcohol, tobacco (CPIF is SCB only).
-- Policy pricing, implied rate per horizon vs the policy rate, now / 1W / 1M ago:
-  Fed = 3M SOFR futures (100 − price, IMM quarter), vs SOFR. Yahoo has no usable daily history per contract, so
-  `save_sofr_strip()` appends a daily snapshot to `sofr_strip.parquet` (kept by the workflow cache); 1W/1M fill in over time.
-  ECB = AAA government curve instantaneous forwards (ECB YC) vs the deposit rate: AAA–OIS spread, read changes.
-  Riksbank = T-bill implied forwards 0–1M, 1–3M, 3–6M vs the policy rate: T-bills trade below the policy rate.
-- Inflation expectations: US breakevens 5Y/10Y, 5Y5Y (us_rates), Michigan 1Y, Cleveland Fed 1Y, ECB SPF long-term.
+- Source `src/assets/macro.py` → `macro.parquet`. `MACRO_SERIES`: "<SOURCE>:<id>" candidates per key (FRED, ECB Data
+  Portal, OECD SDMX), first with data wins. `SCB_SERIES`: SCB PxWebApi 2 tables; the series is picked by label regexes
+  (`include`/`exclude`); when not exactly one matches, the log lists the table's series to fix the regexes.
+  A failing series is printed and skipped, the rest still save.
+- Growth: real GDP SA, QoQ / QoQ SAAR / YoY (US BEA, euro area ECB MNA, Sweden SCB constant prices). OECD CLI
+  (amplitude adjusted, 100 = trend) for the US and Major 4 Europe (G4E), with phase from level vs 100 and the 1M change.
+- Inflation: YoY of the index, 3M annualised for SA indices (US). US CPI/PCE, euro area HICP, Sweden CPIF,
+  CPIF ex energy and CPI (SCB, 2020=100).
+- CB pricing per meeting (meeting dates in `FOMC_MEETINGS`, `ECB_MEETINGS`, `RIKSBANK_MEETINGS`, extend yearly):
+  Fed = 30-day Fed funds futures (`ZQ<m><yy>.CBT`, yfinance), CME FedWatch method, vs EFFR; policy = target range
+  (DFEDTARU/DFEDTARL). Yahoo has no usable daily history per contract, so `save_ff_strip()` appends a daily snapshot to
+  `ff_strip.parquet` (kept by the workflow cache); 1W/1M comparisons fill in over time.
+  ECB = AAA curve Svensson forwards shifted to €STR at horizon 0, averaged per inter-meeting period, vs €STR;
+  implied DFR = DFR + cumulative. Riksbank: no free market source, policy rate and calendar only.
 
 Add a page: `build_<theme>()` in `scripts/build_data.py` + a component in `frontend/src/sections/` registered in `THEMES` in `App.jsx`.
 

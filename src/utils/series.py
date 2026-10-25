@@ -59,41 +59,53 @@ FRED_SERIES = {
 
 
 # --------------------------------------------------
-# Macro: GDP, inflation, expectations (src/assets/macro.py -> macro.parquet)
+# Macro: growth, inflation, policy (src/assets/macro.py -> macro.parquet)
 # --------------------------------------------------
 
-MACRO_FRED = {  # key: FRED candidates, first with data wins
-    # Real GDP, quarterly, SA (US: chained 2017 USD SAAR; SE: Eurostat chain-linked volumes; EA: ECB below)
-    "us_gdp": ["GDPC1"],
-    "se_gdp": ["CLVMNACSCAB1GQSE"],
+MACRO_SERIES = {  # key: "<SOURCE>:<id>" candidates, first with data wins (FRED, ECB, OECD = SDMX "<flow>|<key>")
+    # Real GDP, quarterly, SA (US: chained 2017 USD SAAR; EA: ECB MNA chain-linked volumes, I9 = EA20, I8 = EA19)
+    "us_gdp": ["FRED:GDPC1"],
+    "ea_gdp": ["ECB:MNA.Q.Y.I9.W2.S1.S1.B.B1GQ._Z._Z._Z.EUR.LR.N", "ECB:MNA.Q.Y.I8.W2.S1.S1.B.B1GQ._Z._Z._Z.EUR.LR.N"],
+    # OECD composite leading indicator, amplitude adjusted (100 = long-term trend); G4E = France, Germany, Italy, UK
+    "us_cli": ["OECD:OECD.SDD.STES,DSD_STES@DF_CLI,|USA.M.LI...AA...H", "FRED:USALOLITOAASTSAM"],
+    "g4e_cli": ["OECD:OECD.SDD.STES,DSD_STES@DF_CLI,|G4E.M.LI...AA...H", "FRED:G4ELOLITOAASTSAM"],
     # Price indices, monthly (US SA; HICP NSA)
-    "us_cpi": ["CPIAUCSL"],
-    "us_core_cpi": ["CPILFESL"],
-    "us_pce": ["PCEPI"],
-    "us_core_pce": ["PCEPILFE"],
-    "ea_hicp": ["CP0000EZ19M086NEST"],
-    "ea_core_hicp": ["00XEFDEZ19M086NEST"],
-    "se_hicp": ["CP0000SEM086NEST"],
-    "se_core_hicp": ["00XEFDSEM086NEST"],
-    # Policy rates and survey inflation expectations
-    "ecb_dfr": ["ECBDFR"],
-    "us_mich_1y": ["MICH"],
-    "us_cleveland_1y": ["EXPINF1YR"],
+    "us_cpi": ["FRED:CPIAUCSL"],
+    "us_core_cpi": ["FRED:CPILFESL"],
+    "us_pce": ["FRED:PCEPI"],
+    "us_core_pce": ["FRED:PCEPILFE"],
+    "ea_hicp": ["FRED:CP0000EZ19M086NEST"],
+    "ea_core_hicp": ["FRED:00XEFDEZ19M086NEST"],
+    # Policy: Fed funds target range and effective rate, ECB deposit rate, €STR
+    "fed_upper": ["FRED:DFEDTARU"],
+    "fed_lower": ["FRED:DFEDTARL"],
+    "effr": ["FRED:DFF"],
+    "ecb_dfr": ["FRED:ECBDFR"],
+    "estr": ["ECB:EST.B.EU000A2X2A25.WT"],
+    # AAA euro area government curve, Svensson parameters (daily): instantaneous forward at any horizon
+    **{f"ea_sv_{p.lower()}": [f"ECB:YC.B.U2.EUR.4F.G_N_A.SV_C_YM.{p}"]
+       for p in ["BETA0", "BETA1", "BETA2", "BETA3", "TAU1", "TAU2"]},
 }
 
-MACRO_ECB = {  # key: ECB Data Portal "<flow>.<series key>" candidates, first with data wins
-    # Euro area real GDP, chain-linked volumes, SA (MNA; I9 = euro area 20, I8 = euro area 19)
-    "ea_gdp": ["MNA.Q.Y.I9.W2.S1.S1.B.B1GQ._Z._Z._Z.EUR.LR.N", "MNA.Q.Y.I8.W2.S1.S1.B.B1GQ._Z._Z._Z.EUR.LR.N"],
-    "estr": ["EST.B.EU000A2X2A25.WT"],
-    # AAA euro area government curve, instantaneous forwards (Svensson)
-    "ea_fwd_3m": ["YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_3M"],
-    "ea_fwd_6m": ["YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_6M"],
-    "ea_fwd_1y": ["YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_1Y"],
-    "ea_fwd_2y": ["YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_2Y"],
-    "ea_fwd_3y": ["YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_3Y"],
-    # Survey of Professional Forecasters, HICP long-term (5Y ahead), mean point forecast
-    "ea_spf_lt": ["SPF.Q.U2.HICP.POINT.LT.Q.AVG"],
+SCB_SERIES = {  # key: SCB PxWebApi 2 tables (candidates) + label regexes that pick exactly one series
+    # include: every regex must match the row's joined labels (all non-time dims); exclude: none may match
+    "se_kpif": {"tables": ["TAB6590"], "include": [], "exclude": [r"(?i)change|förändring"]},
+    "se_kpif_xe": {"tables": ["TAB6593"], "include": [], "exclude": [r"(?i)change|förändring"]},
+    "se_kpi": {"tables": ["TAB6596"], "include": [], "exclude": [r"(?i)change|förändring"]},
+    "se_gdp": {"tables": ["NR0103ENS2010T10SKv"], "include": [r"(?i)\bGDP\b|\bBNP\b", r"(?i)constant prices|fasta priser"],
+               "exclude": [r"(?i)change|förändring"]},
 }
+
+# Policy meetings: decision dates (FOMC: 2nd day; ECB: Thursday; Riksbank: publication day). Extend each year.
+FOMC_MEETINGS = [
+    "2026-10-28", "2026-12-09",
+    "2027-01-27", "2027-03-17", "2027-04-28", "2027-06-09", "2027-07-28", "2027-09-15", "2027-10-27", "2027-12-08",
+]
+ECB_MEETINGS = [
+    "2026-10-29", "2026-12-17",
+    "2027-02-04", "2027-03-18", "2027-04-29", "2027-06-10", "2027-07-22", "2027-09-09", "2027-10-28", "2027-12-16",
+]
+RIKSBANK_MEETINGS = ["2026-11-04", "2026-12-16", "2027-02-03", "2027-03-24", "2027-05-05", "2027-06-22"]
 
 
 # --------------------------------------------------
@@ -136,6 +148,17 @@ def generate_sofr_contracts(
         year += 1
 
     return contracts
+
+
+def generate_ff_contracts(n_contracts: int = 15) -> dict[str, str]:
+    """30-day Fed funds futures (CBOT), monthly from the current month."""
+    codes = "FGHJKMNQUVXZ"
+    today = date.today()
+    out = {}
+    for i in range(n_contracts):
+        y, m = today.year + (today.month - 1 + i) // 12, (today.month - 1 + i) % 12 + 1
+        out[f"ff_{y}_{m:02d}"] = f"ZQ{codes[m - 1]}{str(y)[-2:]}.CBT"
+    return out
 
 
 # --------------------------------------------------
@@ -210,4 +233,5 @@ YFINANCE_SERIES = {
     "sofr": generate_sofr_contracts(
         n_contracts=9,
     ),
+    "fed_funds": generate_ff_contracts(),
 }

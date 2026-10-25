@@ -3,7 +3,9 @@ import { ErrorBoundary } from "./components/ui";
 import HomePage from "./sections/HomePage";
 import EquityPage from "./sections/EquityPage";
 import FxPage from "./sections/FxPage";
-import MacroPage from "./sections/MacroPage";
+import GrowthPage from "./sections/GrowthPage";
+import InflationPage from "./sections/InflationPage";
+import PolicyPage from "./sections/PolicyPage";
 import RatesPage from "./sections/RatesPage";
 
 // Theme registry: add a page component + build function(s) in scripts/build_data.py.
@@ -12,7 +14,9 @@ const THEMES = [
   { id: "rates", key: "F1", label: "RATES", Component: RatesPage },
   { id: "fx", key: "F2", label: "FX & CMDTY", Component: FxPage },
   { id: "equity", key: "F3", label: "EQUITY", Component: EquityPage },
-  { id: "macro", key: "F4", label: "MACRO", Component: MacroPage },
+  { id: "growth", key: "F4", label: "GROWTH", Component: GrowthPage },
+  { id: "inflation", key: "F5", label: "INFLATION", Component: InflationPage },
+  { id: "policy", key: "F6", label: "CB PRICING", Component: PolicyPage },
 ];
 
 const initial = () => THEMES.find((t) => t.id === window.location.hash.slice(1))?.id ?? THEMES[0].id;
