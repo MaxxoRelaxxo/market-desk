@@ -319,47 +319,35 @@ def build_equity() -> None:
 
 
 # ============================================================
-# MACRO: growth (GDP, OECD CLI), inflation, policy pricing per meeting
+# MACRO: growth (GDP, OECD CLI), inflation, central banks (Fed priced per meeting)
 # ============================================================
 
-def build_growth() -> None:
+def build_macro() -> None:
     m = macro.load()
-    g, c = macro.growth(m), macro.cli(m)
+    g, c, i, k = macro.growth(m), macro.cli(m), macro.inflation(m), macro.kpif_groups()
     _dump({
-        "asof": m.filter(pl.col("series_id").is_in([*macro.GDP.values(), *macro.CLI]))["date"].max(),
+        "asof": max(d for d in [m["date"].max(), i["date"].max()] if d is not None),
         "economies": macro.ECONOMIES,
-        "prints": _records(macro.growth_prints(g), 2),
-        "gdp": _records(g, 2),
-        "cli_labels": {k: v for k, v in macro.CLI.items() if k in set(c["series_id"])},
-        "cli_latest": _records(c.group_by("series_id", maintain_order=True).last(), 2),
-        "cli": _records(c.pivot(on="series_id", index="date", values="value").sort("date"), 2),
-    }, "growth.json")
-
-
-def build_inflation() -> None:
-    i = macro.inflation(macro.load())
-    _dump({
-        "asof": i["date"].max(),
-        "economies": macro.ECONOMIES,
-        "series": {k: {"economy": e, "label": lbl, "sa": sa, "headline": hd}
-                   for k, (e, lbl, sa, hd) in macro.INFLATION.items() if k in set(i["series_id"])},
-        "prints": _records(macro.inflation_prints(i), 2),
-        "history": _records(i.select("date", "series_id", "yoy", "m3"), 2),
-    }, "inflation.json")
-
-
-def build_policy() -> None:
-    m = macro.load()
-    _dump({
-        "economies": macro.ECONOMIES,
-        "banks": macro.policy(m),
-        "history": _records(macro.policy_history(m), 3),
-    }, "policy.json")
+        "growth": {"prints": _records(macro.growth_prints(g), 2), "gdp": _records(g, 2)},
+        "cli": {
+            "labels": {s: lbl for s, lbl in macro.CLI.items() if s in set(c["series_id"])},
+            "latest": _records(c.group_by("series_id", maintain_order=True).last(), 2),
+            "history": _records(c.pivot(on="series_id", index="date", values="value").sort("date"), 2),
+        },
+        "inflation": {
+            "series": {s: {"economy": e, "label": lbl, "headline": hd}
+                       for s, (e, lbl, hd) in macro.INFLATION.items() if s in set(i["series_id"])},
+            "prints": _records(macro.inflation_prints(i), 2),
+            "kpif_groups": _records(macro.kpif_prints(k), 2) if k.height else [],
+            "history": _records(i.select("date", "series_id", "yoy"), 2),
+        },
+        "policy": {"banks": macro.policy(m), "history": _records(macro.policy_history(m), 3)},
+    }, "macro.json")
 
 
 THEMES = {"us_rates": build_us_rates, "egb": build_egb, "se_rates": build_se_rates, "curves": build_curves,
           "fx": build_fx, "cot": build_cot, "equity": build_equity,
-          "growth": build_growth, "inflation": build_inflation, "policy": build_policy}
+          "macro": build_macro}
 
 
 if __name__ == "__main__":

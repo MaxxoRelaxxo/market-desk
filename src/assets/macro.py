@@ -3,6 +3,7 @@ Macro: GDP, inflation, leading indicators and policy inputs -> macro.parquet (da
 
 - `MACRO_SERIES`: "<SOURCE>:<id>" candidates per key, first with data wins. FRED, ECB Data Portal and OECD (SDMX CSV,
   no key). `SCB_SERIES`: Statistics Sweden PxWebApi 2 tables, one series picked by label regexes (lang=en).
+- `SCB_KPIF`: CPIF by product group, every content (index, changes) with its labels -> scb_kpif.parquet.
 - A failing series is printed and skipped; the rest still save.
 - Fed funds futures: yfinance has no usable daily history per contract, so each run appends the last close per live
   ZQ contract from market_data.parquet to ff_strip.parquet (run after the yfinance step).
@@ -16,7 +17,7 @@ import polars as pl
 import requests
 
 from assets.fred import fetch_fred
-from utils.series import MACRO_SERIES, SCB_SERIES
+from utils.series import MACRO_SERIES, SCB_KPIF, SCB_SERIES
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 SDMX = {
@@ -48,21 +49,23 @@ def fetch_sdmx(source: str, sid: str, start: str = "2000-01-01") -> pl.DataFrame
     )
 
 
-def fetch_scb(table: str, include: list[str], exclude: list[str]) -> pl.DataFrame:
-    """date | value for the one series of an SCB table whose joined labels match `include` and none of `exclude`."""
+def _scb(table: str, params: dict | None = None) -> tuple[pl.DataFrame, str, list[str]]:
+    """Whole SCB table (or the `params` valueCodes selection) as a long frame: <dim> | <dim>_label ... | value.
+    Returns (frame, time dim, other dims)."""
     for base in SCB_BASES:
         try:
-            meta = requests.get(f"{base}/tables/{table}/metadata", params={"lang": "en"}, timeout=60)
-            meta.raise_for_status()
+            if params is None:
+                meta = requests.get(f"{base}/tables/{table}/metadata", params={"lang": "en"}, timeout=60)
+                meta.raise_for_status()
+                params = {f"valueCodes[{d}]": "*" for d in meta.json()["id"]}
+            r = requests.get(f"{base}/tables/{table}/data", timeout=60,
+                             params={"lang": "en", "outputFormat": "json-stat2", **params})
+            r.raise_for_status()
             break
         except requests.RequestException as exc:
             err = exc
     else:
         raise RuntimeError(f"SCB {table}: {err}")
-    dims = meta.json()["id"]
-    r = requests.get(f"{base}/tables/{table}/data", timeout=60, params={
-        "lang": "en", "outputFormat": "json-stat2", **{f"valuecodes[{d}]": "*" for d in dims}})
-    r.raise_for_status()
     js = r.json()
     # JSON-stat: values in row-major order over `id`; chained cross joins give the same order
     grid = None
@@ -72,15 +75,35 @@ def fetch_scb(table: str, include: list[str], exclude: list[str]) -> pl.DataFram
         f = pl.DataFrame({d: codes, f"{d}_label": [cat.get("label", {}).get(c, c) for c in codes]})
         grid = f if grid is None else grid.join(f, how="cross")
     time = (js.get("role", {}).get("time") or [d for d in js["id"] if d.lower() in ("tid", "time")])[0]
-    other = [f"{d}_label" for d in js["id"] if d != time]
-    df = grid.with_columns(pl.Series("value", js["value"], dtype=pl.Float64, strict=False),
-                           pl.concat_str(other, separator=" | ").alias("series") if other else pl.lit(""))
+    df = grid.with_columns(pl.Series("value", js["value"], dtype=pl.Float64, strict=False))
+    return df, time, [d for d in js["id"] if d != time]
+
+
+def fetch_scb(table: str, include: list[str], exclude: list[str]) -> pl.DataFrame:
+    """date | value for the one series of an SCB table whose joined labels match `include` and none of `exclude`."""
+    df, time, other = _scb(table)
+    df = df.with_columns(pl.concat_str([f"{d}_label" for d in other], separator=" | ").alias("series")
+                         if other else pl.lit(""))
     keep = [s for s in df["series"].unique().to_list()
             if all(re.search(x, s) for x in include) and not any(re.search(x, s) for x in exclude)]
     if len(keep) != 1:
         options = "\n  ".join(sorted(df["series"].unique().to_list())[:30])
         raise RuntimeError(f"SCB {table}: {len(keep)} series match, need 1. Options:\n  {options}")
     return df.filter(pl.col("series") == keep[0]).select(_period(time).alias("date"), "value").drop_nulls()
+
+
+def save_scb_kpif() -> Path:
+    """CPIF by product group: date | group | group_label | content | content_label | value -> scb_kpif.parquet."""
+    params = {f"valueCodes[{k}]": v for k, v in SCB_KPIF["valueCodes"].items()}
+    df, time, _ = _scb(SCB_KPIF["table"], params)
+    df = df.select(_period(time).alias("date"),
+                   pl.col("VaruTjanstegrupp").alias("group"), pl.col("VaruTjanstegrupp_label").alias("group_label"),
+                   pl.col("ContentsCode").alias("content"), pl.col("ContentsCode_label").alias("content_label"),
+                   "value").drop_nulls()
+    path = DATA_DIR / "scb_kpif.parquet"
+    df.write_parquet(path)
+    print(df.group_by("content", "content_label").agg(pl.col("date").max().alias("last"), pl.len()))
+    return path
 
 
 def _fetch(cand: str, start: str) -> pl.DataFrame:
@@ -132,6 +155,10 @@ def save_macro_parquet(start: str = "2000-01-01") -> Path:
     path = DATA_DIR / "macro.parquet"
     df.write_parquet(path)
     print(df.group_by("series_id", "source").agg(pl.col("date").max().alias("last"), pl.len()).sort("series_id"))
+    try:
+        save_scb_kpif()
+    except (RuntimeError, requests.RequestException, KeyError) as exc:
+        print(f"SCB CPIF by group failed: {exc}")
     try:
         save_ff_strip()
     except FileNotFoundError as exc:

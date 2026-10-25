@@ -76,27 +76,27 @@ MACRO_SERIES = {  # key: "<SOURCE>:<id>" candidates, first with data wins (FRED,
     "us_core_pce": ["FRED:PCEPILFE"],
     "ea_hicp": ["FRED:CP0000EZ19M086NEST"],
     "ea_core_hicp": ["FRED:00XEFDEZ19M086NEST"],
-    # Policy: Fed funds target range and effective rate, ECB deposit rate, €STR
+    # Policy: Fed funds target range and effective rate, ECB deposit rate
     "fed_upper": ["FRED:DFEDTARU"],
     "fed_lower": ["FRED:DFEDTARL"],
     "effr": ["FRED:DFF"],
     "ecb_dfr": ["FRED:ECBDFR"],
-    "estr": ["ECB:EST.B.EU000A2X2A25.WT"],
-    # AAA euro area government curve, Svensson parameters (daily): instantaneous forward at any horizon
-    **{f"ea_sv_{p.lower()}": [f"ECB:YC.B.U2.EUR.4F.G_N_A.SV_C_YM.{p}"]
-       for p in ["BETA0", "BETA1", "BETA2", "BETA3", "TAU1", "TAU2"]},
 }
 
 SCB_SERIES = {  # key: SCB PxWebApi 2 tables (candidates) + label regexes that pick exactly one series
     # include: every regex must match the row's joined labels (all non-time dims); exclude: none may match
-    "se_kpif": {"tables": ["TAB6590"], "include": [], "exclude": [r"(?i)change|förändring"]},
-    "se_kpif_xe": {"tables": ["TAB6593"], "include": [], "exclude": [r"(?i)change|förändring"]},
-    "se_kpi": {"tables": ["TAB6596"], "include": [], "exclude": [r"(?i)change|förändring"]},
     "se_gdp": {"tables": ["NR0103ENS2010T10SKv"], "include": [r"(?i)\bGDP\b|\bBNP\b", r"(?i)constant prices|fasta priser"],
                "exclude": [r"(?i)change|förändring"]},
 }
+# CPIF by product group (COICOP 2018 divisions, 00 = total), all contents -> scb_kpif.parquet
+SCB_KPIF = {
+    "table": "TAB6601",
+    "valueCodes": {"VaruTjanstegrupp": ",".join(f"{i:02d}" for i in range(14)),
+                   "ContentsCode": "0000080U,0000080Y,0000080Z", "Tid": "*"},
+}
 
 # Policy meetings: decision dates (FOMC: 2nd day; ECB: Thursday; Riksbank: publication day). Extend each year.
+# Fed: priced per meeting from Fed funds futures; ECB, Riksbank: next meeting date only.
 FOMC_MEETINGS = [
     "2026-10-28", "2026-12-09",
     "2027-01-27", "2027-03-17", "2027-04-28", "2027-06-09", "2027-07-28", "2027-09-15", "2027-10-27", "2027-12-08",

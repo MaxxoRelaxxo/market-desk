@@ -228,3 +228,4 @@ frontend/dist/
 
 src/data/macro.parquet
 src/data/ff_strip.parquet
+src/data/scb_kpif.parquet

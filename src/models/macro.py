@@ -5,24 +5,19 @@ Macro monitor: growth (GDP, OECD CLI), inflation and meeting-by-meeting policy p
   US: BEA (FRED). Euro area: ECB MNA. Sweden: SCB, seasonally adjusted, constant prices.
 - CLI: OECD composite leading indicator, amplitude adjusted, 100 = long-term trend. Phase from level vs 100 and the
   1M change: expansion (> 100, rising), downturn (> 100, falling), slowdown (< 100, falling), recovery (< 100, rising).
-- Inflation: YoY % of the index; 3M annualised (3m/3m SAAR) only for seasonally adjusted indices (US).
-  Sweden: SCB CPIF, CPIF ex energy, CPI (2020=100).
+- Inflation: YoY %. US/EA from the index (12 months earlier). Sweden: SCB CPIF by product group (COICOP 2018,
+  00 = total): SCB's 12-month change when the table has it, else computed from the index.
 - Fed pricing: 30-day Fed funds futures, monthly average EFFR = 100 − price (CME FedWatch method). Rate after a
   meeting = next month's average when that month has no meeting, else solved from the meeting month:
   avg = (d · pre + (N − d) · post) / N, d = decision day (new rate from the day after). Pre = previous post, the
   first one starts from today's EFFR. Cumulative = vs today's EFFR; implied target mid = mid + cumulative.
-- ECB pricing: AAA euro area government curve (ECB, Svensson parameters), instantaneous forwards shifted so the
-  0-horizon forward equals €STR, averaged over each inter-meeting period (rate effective the Wednesday after the
-  decision). Cumulative = vs today's €STR; implied deposit rate = DFR + cumulative. AAA bonds are not OIS: the
-  shift removes the level gap at the front, the slope beyond ~1Y still carries term premium.
-- Riksbank: no free market source for meeting pricing (STIBOR FRA, SEK OIS); policy rate and calendar only.
+- ECB, Riksbank: policy rate and next meeting (no free meeting-level market pricing).
 """
 
 import calendar
 from datetime import date, timedelta
 from pathlib import Path
 
-import numpy as np
 import polars as pl
 
 from utils.series import ECB_MEETINGS, FOMC_MEETINGS, RIKSBANK_MEETINGS
@@ -32,18 +27,15 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 ECONOMIES = {"US": "United States", "EA": "Euro area", "SE": "Sweden"}
 GDP = {"US": "us_gdp", "EA": "ea_gdp", "SE": "se_gdp"}
 CLI = {"us_cli": "United States", "g4e_cli": "Major 4 Europe"}
-INFLATION = {  # key: (economy, label, seasonally adjusted, headline)
-    "us_cpi": ("US", "CPI", True, True),
-    "us_core_cpi": ("US", "Core CPI", True, False),
-    "us_pce": ("US", "PCE", True, False),
-    "us_core_pce": ("US", "Core PCE", True, False),
-    "ea_hicp": ("EA", "HICP", False, True),
-    "ea_core_hicp": ("EA", "Core HICP", False, False),
-    "se_kpif": ("SE", "CPIF", False, True),
-    "se_kpif_xe": ("SE", "CPIF ex energy", False, False),
-    "se_kpi": ("SE", "CPI", False, False),
+INFLATION = {  # key: (economy, label, headline); se_kpif = SCB CPIF total (scb_kpif.parquet, group 00)
+    "us_cpi": ("US", "CPI", True),
+    "us_core_cpi": ("US", "Core CPI", False),
+    "us_pce": ("US", "PCE", False),
+    "us_core_pce": ("US", "Core PCE", False),
+    "ea_hicp": ("EA", "HICP", True),
+    "ea_core_hicp": ("EA", "Core HICP", False),
+    "se_kpif": ("SE", "CPIF", True),
 }
-SV = ["ea_sv_beta0", "ea_sv_beta1", "ea_sv_beta2", "ea_sv_beta3", "ea_sv_tau1", "ea_sv_tau2"]
 FF_MONTHS = {c: i + 1 for i, c in enumerate("FGHJKMNQUVXZ")}
 COMPARE = {"w1": 7, "m1": 30}  # days back for the comparison strips
 
@@ -121,24 +113,49 @@ def cli(m: pl.DataFrame) -> pl.DataFrame:
 
 # ============================================================ INFLATION
 
+def kpif_groups() -> pl.DataFrame:
+    """SCB CPIF YoY by product group: date | group | group_label | yoy."""
+    path = DATA_DIR / "scb_kpif.parquet"
+    if not path.exists():
+        return pl.DataFrame(schema={"date": pl.Date, "group": pl.String, "group_label": pl.String, "yoy": pl.Float64})
+    df = pl.read_parquet(path)
+    labels = dict(df.select("content", "content_label").unique().iter_rows())
+    yoy = [c for c, lbl in labels.items() if "12" in lbl]  # "12-month change" / "12-månadsförändring"
+    if yoy:
+        return df.filter(pl.col("content") == yoy[0]).select("date", "group", "group_label", pl.col("value").alias("yoy"))
+    idx = next((c for c, lbl in labels.items() if "2020=100" in lbl or "ndex" in lbl), next(iter(labels)))
+    return (_pct(df.filter(pl.col("content") == idx).rename({"group": "series_id"}).select("date", "series_id", "value"), 12, "yoy")
+            .join(df.select(pl.col("group").alias("series_id"), "group_label").unique(), on="series_id")
+            .select("date", pl.col("series_id").alias("group"), "group_label", "yoy").drop_nulls())
+
+
 def inflation(m: pl.DataFrame) -> pl.DataFrame:
-    """date | series_id | economy | label | yoy | m3 (3M annualised, SA indices only) (%)."""
-    df = m.filter(pl.col("series_id").is_in(list(INFLATION)))
-    sa = [k for k, v in INFLATION.items() if v[2]]
+    """date | series_id | economy | label | yoy (%)."""
+    se = kpif_groups().filter(pl.col("group") == "00").select("date", pl.lit("se_kpif").alias("series_id"), "yoy")
+    us_ea = _pct(m.filter(pl.col("series_id").is_in(list(INFLATION))), 12, "yoy").select("date", "series_id", "yoy")
     return (
-        _pct(_pct(df, 3, "m3"), 12, "yoy")
-        .with_columns(pl.when(pl.col("series_id").is_in(sa)).then(_saar("m3")).alias("m3"))
+        pl.concat([us_ea, se])
         .select("date", "series_id",
                 pl.col("series_id").replace_strict({k: v[0] for k, v in INFLATION.items()}).alias("economy"),
                 pl.col("series_id").replace_strict({k: v[1] for k, v in INFLATION.items()}).alias("label"),
-                "yoy", "m3")
+                "yoy")
         .drop_nulls("yoy").sort("series_id", "date")
     )
 
 
 def inflation_prints(i: pl.DataFrame) -> pl.DataFrame:
     return prints(i.select("date", "economy", "label", pl.col("yoy").alias("value")),
-                  [f"{e}|{lbl}" for e, lbl, _, _ in INFLATION.values()])
+                  [f"{e}|{lbl}" for e, lbl, _ in INFLATION.values()])
+
+
+def kpif_prints(k: pl.DataFrame) -> pl.DataFrame:
+    """Latest CPIF YoY per product group: group | group_label | date | value | prev | y1, total first."""
+    return (
+        prints(k.select("date", pl.lit("SE").alias("economy"), pl.col("group").alias("label"), pl.col("yoy").alias("value")), [])
+        .join(k.select(pl.col("group").alias("label"), "group_label").unique(), on="label")
+        .select(pl.col("label").alias("group"), "group_label", "date", "value", "prev", "y1")
+        .sort("group")
+    )
 
 
 # ============================================================ POLICY PRICING
@@ -202,31 +219,6 @@ def _fed(strip: pl.DataFrame, effr: pl.DataFrame, asof: date) -> list[dict]:
     return out
 
 
-def _sv_fwd(p: dict, t: np.ndarray) -> np.ndarray:
-    """Svensson instantaneous forward at horizons t (years)."""
-    b0, b1, b2, b3, t1, t2 = (p[k] for k in SV)
-    return b0 + b1 * np.exp(-t / t1) + b2 * (t / t1) * np.exp(-t / t1) + b3 * (t / t2) * np.exp(-t / t2)
-
-
-def _ecb(wide: pl.DataFrame, asof: date) -> list[dict]:
-    """Implied €STR after each ECB meeting: AAA Svensson forwards anchored on €STR, averaged per period."""
-    p = _row(wide, asof)
-    if any(p.get(k) is None for k in [*SV, "estr"]):
-        return []
-    d0, estr = p["date"], p["estr"]
-    shift = estr - _sv_fwd(p, np.array([0.0]))[0]
-    meetings = [m for m in _dates(ECB_MEETINGS) if m > d0]
-    eff = [m + timedelta(days=6) for m in meetings]  # Thursday decision, effective the next Wednesday
-    out, rate = [], estr
-    for i, mt in enumerate(meetings):
-        end = eff[i + 1] if i + 1 < len(eff) else eff[i] + timedelta(days=42)
-        t = (np.arange((eff[i] - d0).days, (end - d0).days) + 0.5) / 365.25
-        post = float(_sv_fwd(p, t).mean() + shift)
-        out.append({"date": mt, "rate": post, "chg": (post - rate) * 100, "cum": (post - estr) * 100})
-        rate = post
-    return out
-
-
 def _compare(f, asof: date) -> list[dict]:
     """Rows of f(asof) with the cumulative pricing of the same meeting 1W / 1M earlier."""
     now = f(asof)
@@ -238,44 +230,36 @@ def _compare(f, asof: date) -> list[dict]:
 
 
 def policy(m: pl.DataFrame) -> dict:
-    """{bank: {asof, rate (current policy), effective, meetings: [{date, rate, policy, chg, cum, cum_w1, cum_m1}]}}."""
+    """{bank: {asof, label, rate | lower/upper, next, meetings}}; Fed meetings priced:
+    [{date, rate, policy, chg, cum, cum_w1, cum_m1}]."""
     out = {}
-    pol = _wide(m, ["fed_upper", "fed_lower", "effr", "ecb_dfr", "estr", *SV])
+    pol = _wide(m, ["fed_upper", "fed_lower", "effr", "ecb_dfr"])
     strip = ff_strip()
     if not strip.is_empty() and "effr" in pol.columns:
         asof = strip["date"].max()
         p = _row(pol, asof)
-        mid = (p.get("fed_upper", 0) + p.get("fed_lower", 0)) / 2 if p.get("fed_upper") is not None else None
+        mid = (p["fed_upper"] + p["fed_lower"]) / 2 if p.get("fed_upper") is not None else None
         rows = _compare(lambda d: _fed(strip, pol.select("date", "effr"), d), asof)
         out["US"] = {
             "asof": asof, "label": "Fed funds target", "lower": p.get("fed_lower"), "upper": p.get("fed_upper"),
-            "effective": p.get("effr"), "effective_label": "EFFR",
             "meetings": [r | {"policy": None if mid is None else mid + r["cum"] / 100} for r in rows],
         }
-    if all(k in pol.columns for k in [*SV, "estr"]):
-        asof = pol.drop_nulls([*SV, "estr"])["date"].max()
-        p = _row(pol, asof)
-        rows = _compare(lambda d: _ecb(pol, d), asof)
-        out["EA"] = {
-            "asof": asof, "label": "ECB deposit rate", "rate": p.get("ecb_dfr"),
-            "effective": p.get("estr"), "effective_label": "€STR",
-            "meetings": [r | {"policy": None if p.get("ecb_dfr") is None else p["ecb_dfr"] + r["cum"] / 100} for r in rows],
-        }
-    se = _read("svea_series", ["SECBREPOEFF"])
-    if se.height:
-        out["SE"] = {
-            "asof": se["date"].max(), "label": "Riksbank policy rate", "rate": se["value"][-1],
-            "meetings": [{"date": d} for d in _dates(RIKSBANK_MEETINGS) if d > se["date"].max()],
-        }
-    for b in out.values():  # round for JSON
-        b["meetings"] = [{k: round(v, 4) if isinstance(v, float) else v for k, v in r.items()} for r in b["meetings"]]
+    ecb, se = m.filter(pl.col("series_id") == "ecb_dfr").sort("date"), _read("svea_series", ["SECBREPOEFF"])
+    for e, label, df in [("EA", "ECB deposit rate", ecb), ("SE", "Riksbank policy rate", se)]:
+        if df.height:
+            out[e] = {"asof": df["date"].max(), "label": label, "rate": df["value"][-1], "meetings": []}
+    for e, meetings in [("US", FOMC_MEETINGS), ("EA", ECB_MEETINGS), ("SE", RIKSBANK_MEETINGS)]:
+        if e in out:
+            out[e]["next"] = next((d for d in _dates(meetings) if d > out[e]["asof"]), None)
+            out[e]["meetings"] = [{k: round(v, 4) if isinstance(v, float) else v for k, v in r.items()}
+                                  for r in out[e]["meetings"]]
     return out
 
 
 def policy_history(m: pl.DataFrame) -> pl.DataFrame:
-    """Weekly date | fed_upper | fed_lower | ecb_dfr | SE (last obs)."""
+    """Weekly date | effr | ecb_dfr | SE (last obs)."""
     return (
-        pl.concat([m.filter(pl.col("series_id").is_in(["fed_upper", "fed_lower", "ecb_dfr"])),
+        pl.concat([m.filter(pl.col("series_id").is_in(["effr", "ecb_dfr"])),
                    _read("svea_series", ["SECBREPOEFF"]).with_columns(series_id=pl.lit("SE"))])
         .sort("series_id", "date")
         .group_by_dynamic("date", every="1w", group_by="series_id").agg(pl.col("value").last())
