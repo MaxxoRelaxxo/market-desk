@@ -40,13 +40,13 @@ const DESKS = [
   {
     id: "macro",
     label: "Macro Monitor",
-    status: "soon",
+    status: "live",
     lead: "The data that moves central banks, in one view.",
     items: [
-      "Inflation: CPIF, HICP, US CPI/PCE",
-      "Labour market, PMIs and growth nowcasts",
-      "Policy paths: Riksbank, ECB, Fed",
-      "Fiscal: debt and deficits (AMECO)",
+      "Real GDP: US, euro area and Sweden",
+      "Inflation: HICP, US CPI/PCE, headline and core",
+      "Policy pricing: Fed (SOFR futures), ECB, Riksbank",
+      "Inflation expectations: breakevens and surveys",
     ],
   },
 ];

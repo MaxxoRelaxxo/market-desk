@@ -50,6 +50,9 @@ jobs:
       - name: Yahoo Finance (commodities, indices)
         continue-on-error: true
         run: uv run python -c "from assets.yfinance import save_yfinance_parquet; save_yfinance_parquet()"
+      - name: Macro (FRED, ECB) + SOFR strip snapshot
+        continue-on-error: true
+        run: uv run python -c "from assets.macro import save_macro_parquet; save_macro_parquet()"
       - name: CFTC Commitments of Traders
         continue-on-error: true
         run: uv run python -c "from assets.cftc import save_cot_parquet; save_cot_parquet()"

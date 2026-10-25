@@ -21,6 +21,7 @@ PYTHONPATH=src uv run python -c "from assets.ameco import save_ameco_parquet; sa
 PYTHONPATH=src uv run python -c "from assets.daily_yields import save_daily_parquet; print(save_daily_parquet())"
 PYTHONPATH=src uv run python -c "from assets.swedish_data import save_svea_parquet; save_svea_parquet()"
 PYTHONPATH=src uv run python -c "from assets.yfinance import save_yfinance_parquet; save_yfinance_parquet()"
+PYTHONPATH=src uv run python -c "from assets.macro import save_macro_parquet; save_macro_parquet()"  # after yfinance
 PYTHONPATH=src uv run python -c "from assets.cftc import save_cot_parquet; save_cot_parquet()"
 PYTHONPATH=src uv run python -c "from assets.sec import save_sec_parquet; save_sec_parquet()"
 uv run python scripts/build_data.py          # all themes, or e.g. `... build_data.py se_rates`
@@ -71,7 +72,22 @@ global; YTD–10Y) → hyperscalers vs semiconductors.
   members, only quarters where all members have reported. US filers only (TSMC, ASML file 20-F/6-K).
 - Indices build without `sec_facts.parquet`; the fundamentals block then shows a hint.
 
-Add a page (Macro): `build_<theme>()` in `scripts/build_data.py` + a component in `frontend/src/sections/` registered in `THEMES` in `App.jsx`.
+### Macro (`frontend/src/sections/MacroPage.jsx`, F4, data `macro.json` from `build_macro`, model `src/models/macro.py`)
+
+Overview tiles + latest prints table (US, euro area, Sweden) → real GDP → inflation → policy pricing → inflation expectations.
+
+- Source `src/assets/macro.py` → `macro.parquet`: FRED (`MACRO_FRED`, first candidate id with data wins) and ECB Data
+  Portal (`MACRO_ECB`, no key). A failing series is logged and skipped, the rest still save.
+- GDP: real, SA (GDPC1, Eurostat chain-linked volumes). QoQ, QoQ SAAR, YoY. Inflation: YoY of the index; 3M annualised
+  only for SA indices (US CPI/PCE). Euro area and Sweden: HICP and HICP ex energy, food, alcohol, tobacco (CPIF is SCB only).
+- Policy pricing, implied rate per horizon vs the policy rate, now / 1W / 1M ago:
+  Fed = 3M SOFR futures (100 − price, IMM quarter), vs SOFR. Yahoo has no usable daily history per contract, so
+  `save_sofr_strip()` appends a daily snapshot to `sofr_strip.parquet` (kept by the workflow cache); 1W/1M fill in over time.
+  ECB = AAA government curve instantaneous forwards (ECB YC) vs the deposit rate: AAA–OIS spread, read changes.
+  Riksbank = T-bill implied forwards 0–1M, 1–3M, 3–6M vs the policy rate: T-bills trade below the policy rate.
+- Inflation expectations: US breakevens 5Y/10Y, 5Y5Y (us_rates), Michigan 1Y, Cleveland Fed 1Y, ECB SPF long-term.
+
+Add a page: `build_<theme>()` in `scripts/build_data.py` + a component in `frontend/src/sections/` registered in `THEMES` in `App.jsx`.
 
 ### Swedish term premium (ACM 2013, `src/models/acm.py`)
 

@@ -59,6 +59,43 @@ FRED_SERIES = {
 
 
 # --------------------------------------------------
+# Macro: GDP, inflation, expectations (src/assets/macro.py -> macro.parquet)
+# --------------------------------------------------
+
+MACRO_FRED = {  # key: FRED candidates, first with data wins
+    # Real GDP, quarterly, SA (US: chained 2017 USD SAAR; EA/SE: Eurostat chain-linked volumes)
+    "us_gdp": ["GDPC1"],
+    "ea_gdp": ["CLVMNACSCAB1GQEA20", "CLVMNACSCAB1GQEA19"],
+    "se_gdp": ["CLVMNACSCAB1GQSE"],
+    # Price indices, monthly (US SA; HICP NSA)
+    "us_cpi": ["CPIAUCSL"],
+    "us_core_cpi": ["CPILFESL"],
+    "us_pce": ["PCEPI"],
+    "us_core_pce": ["PCEPILFE"],
+    "ea_hicp": ["CP0000EZ19M086NEST"],
+    "ea_core_hicp": ["00XEFDEZ19M086NEST"],
+    "se_hicp": ["CP0000SEM086NEST"],
+    "se_core_hicp": ["00XEFDSEM086NEST"],
+    # Policy rates and survey inflation expectations
+    "ecb_dfr": ["ECBDFR"],
+    "us_mich_1y": ["MICH"],
+    "us_cleveland_1y": ["EXPINF1YR"],
+}
+
+MACRO_ECB = {  # key: ECB Data Portal "<flow>.<series key>"
+    "estr": "EST.B.EU000A2X2A25.WT",
+    # AAA euro area government curve, instantaneous forwards (Svensson)
+    "ea_fwd_3m": "YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_3M",
+    "ea_fwd_6m": "YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_6M",
+    "ea_fwd_1y": "YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_1Y",
+    "ea_fwd_2y": "YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_2Y",
+    "ea_fwd_3y": "YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_3Y",
+    # Survey of Professional Forecasters, HICP long-term (5Y ahead), mean point forecast
+    "ea_spf_lt": "SPF.Q.U2.HICP.POINT.LT.Q.AVG",
+}
+
+
+# --------------------------------------------------
 # SOFR futures
 # --------------------------------------------------
 

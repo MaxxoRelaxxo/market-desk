@@ -11,7 +11,7 @@ import polars as pl
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from models import acm, cot, egb, equity, fx
+from models import acm, cot, egb, equity, fx, macro
 from utils.series import FRED_SERIES
 
 DATA_DIR = ROOT / "src" / "data"
@@ -318,8 +318,41 @@ def build_equity() -> None:
     }, "equity.json")
 
 
+# ============================================================
+# MACRO: GDP, inflation, policy pricing, inflation expectations
+# ============================================================
+
+def build_macro() -> None:
+    m = macro.load()
+    g, i = macro.growth(m), macro.inflation(m)
+    exp = macro.expectations()
+    labels = {k: lbl for k, (lbl, _) in macro.EXPECTATIONS.items()}
+    exp_ids = [k for k in macro.EXPECTATIONS if k in set(exp["series_id"])]
+    exp_hist = (  # weekly last obs; monthly/quarterly surveys keep their release dates
+        exp.sort("series_id", "date").group_by_dynamic("date", every="1w", group_by="series_id")
+        .agg(pl.col("value").last()).pivot(on="series_id", index="date", values="value").sort("date")
+    )
+    _dump({
+        "asof": max(d for d in [m["date"].max(), exp["date"].max()] if d is not None),
+        "economies": macro.ECONOMIES,
+        "inflation_series": {k: {"economy": e, "label": lbl, "sa": sa, "headline": hd}
+                             for k, (e, lbl, sa, hd) in macro.INFLATION.items()},
+        "prints": _records(macro.prints(g, i), 2),
+        "gdp": _records(g, 2),
+        "inflation": _records(i.select("date", "series_id", "yoy", "m3"), 2),
+        "paths": macro.paths(m),
+        "policy": {e: lbl for e, (lbl, _, _) in macro.POLICY.items()},
+        "policy_history": _records(macro.policy_history(), 3),
+        "expectations": {
+            "labels": {k: labels[k] for k in exp_ids},
+            "latest": _records(_latest(exp, exp_ids, labels), 2) if exp_ids else [],
+            "history": _records(exp_hist.select("date", *exp_ids), 2),
+        },
+    }, "macro.json")
+
+
 THEMES = {"us_rates": build_us_rates, "egb": build_egb, "se_rates": build_se_rates, "curves": build_curves,
-          "fx": build_fx, "cot": build_cot, "equity": build_equity}
+          "fx": build_fx, "cot": build_cot, "equity": build_equity, "macro": build_macro}
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import { ErrorBoundary } from "./components/ui";
 import HomePage from "./sections/HomePage";
 import EquityPage from "./sections/EquityPage";
 import FxPage from "./sections/FxPage";
+import MacroPage from "./sections/MacroPage";
 import RatesPage from "./sections/RatesPage";
 
 // Theme registry: add a page component + build function(s) in scripts/build_data.py.
@@ -11,6 +12,7 @@ const THEMES = [
   { id: "rates", key: "F1", label: "RATES", Component: RatesPage },
   { id: "fx", key: "F2", label: "FX & CMDTY", Component: FxPage },
   { id: "equity", key: "F3", label: "EQUITY", Component: EquityPage },
+  { id: "macro", key: "F4", label: "MACRO", Component: MacroPage },
 ];
 
 const initial = () => THEMES.find((t) => t.id === window.location.hash.slice(1))?.id ?? THEMES[0].id;
