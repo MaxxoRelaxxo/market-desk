@@ -7,8 +7,8 @@ const RANGES = [{ id: 3, label: "3Y" }, { id: 10, label: "10Y" }, { id: 99, labe
 const UNITS = [{ id: "k", label: "K CONTRACTS" }, { id: "oi", label: "% OI" }];
 const SMOOTH = [{ id: 1, label: "WEEKLY" }, { id: 4, label: "4W MA" }];
 const VIEWS = [{ id: "price", label: "NET VS PRICE" }, { id: "gross", label: "LONG / SHORT" }, { id: "all", label: "ALL GROUPS" }];
-const SHORT = { lev_money: "LEV FUNDS", asset_mgr: "ASSET MGRS", dealer: "DEALERS", other: "OTHER", nonrept: "NON-REPT" };
-const HEADLINE = { lev_money: ["LEVERAGED FUNDS", "Lev funds"], asset_mgr: ["ASSET MANAGERS", "Asset managers"] };
+const SHORT = { noncomm: "NON-COMM", lev_money: "LEV FUNDS", asset_mgr: "ASSET MGRS", dealer: "DEALERS", other: "OTHER", nonrept: "NON-REPT" };
+const HEADLINE = { noncomm: ["NON-COMMERCIALS", "Non-comm"], lev_money: ["LEVERAGED FUNDS", "Lev funds"], asset_mgr: ["ASSET MANAGERS", "Asset managers"] };
 const HIDDEN = { other: true, nonrept: true };
 const NOTES = {
   price: "Net of the selected group (area, left) vs the front-month future (line, right). Dashed: 3Y mean ± 2σ of net = positioning extremes, contrarian zone.",
@@ -85,7 +85,7 @@ export default function CotSection({ contracts, note }) {
   const digits = unit === "k" ? 0 : 1;
 
   return (
-    <Block id="cot" title="POSITIONING" sub={`CFTC TFF · futures only · weekly · as of ${d.asof}`}
+    <Block id="cot" title="POSITIONING" sub={`CFTC TFF + Legacy non-comm · futures only · weekly · as of ${d.asof}`}
       right={<div className="toggles">
         <Toggle value={unit} onChange={setUnit} options={UNITS} />
         <Toggle value={ma} onChange={setMa} options={SMOOTH} />
@@ -164,7 +164,7 @@ export default function CotSection({ contracts, note }) {
         })}
       </div>
       <Card title="NET POSITIONS & EXTREMES"
-        note={`TFF report only across the full history (no Legacy/Disaggregated mix). Contracts in thousands, positions as of Tuesday, published Friday: read as weekly trend, not short-term signals. 1W/4W = change in net. Long/Short 1W = change in gross, colored by effect on net (green: longs added or shorts covered). % OI = net / open interest. z 3Y and 3Y pct vs the last ${d.window} weeks. Price: continuous front-month future (Yahoo), rolls can cause jumps. ${note ?? ""}`}>
+        note={`Trader groups from TFF; Non-commercials from the Legacy report (same contracts, same OI; spreading excluded). Contracts in thousands, positions as of Tuesday, published Friday: read as weekly trend, not short-term signals. 1W/4W = change in net. Long/Short 1W = change in gross, colored by effect on net (green: longs added or shorts covered). % OI = net / open interest. z 3Y and 3Y pct vs the last ${d.window} weeks. Price: continuous front-month future (Yahoo), rolls can cause jumps. ${note ?? ""}`}>
         <div className="table-wrap"><table className="table">
           <thead>
             <tr>
