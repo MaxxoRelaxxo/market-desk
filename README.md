@@ -45,10 +45,11 @@ overview tiles + levels/% changes/range table → weekly development → G10 cro
 ### CFTC positioning (`src/assets/cftc.py`, `src/models/cot.py`, `frontend/src/sections/CotSection.jsx`)
 
 Traders in Financial Futures (TFF), futures only, Socrata dataset `gpe5-46if` on publicreporting.cftc.gov (no key).
-One report type across the full history (no Legacy/Disaggregated mix). Contracts in `COT_CONTRACTS`
+Plus non-commercials from the Legacy report, futures only (`6dca-aqww`), joined on date × contract (same OI;
+spreading excluded, net = long − short). Contracts in `COT_CONTRACTS`
 (`src/utils/series.py`): UST 2Y `042601`, UST 10Y `043602`, JPY `097741`, EUR `099741`.
 
-- Gross long, short and net per group (leveraged funds, asset managers, dealers, other reportables, non-reportables);
+- Gross long, short and net per group (non-commercials, leveraged funds, asset managers, dealers, other reportables, non-reportables);
   % OI, z-score and percentile vs the last 156 weeks; 1W change in gross long and short.
 - Views: net of a chosen group vs the front-month future (`COT_FUTURES`, yfinance: ZT=F, ZN=F, 6J=F, 6E=F) with
   3Y mean ± 2σ bands; gross long/short; net of all groups. Units k contracts or % OI, weekly or 4W MA.

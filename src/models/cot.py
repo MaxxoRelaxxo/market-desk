@@ -1,5 +1,5 @@
 """
-CFTC positioning (TFF only, one report type across the full history): gross long, short and net per trader group.
+CFTC positioning: TFF trader groups plus Legacy non-commercials: gross long, short and net per trader group.
 
 - Net = long − short (contracts). % OI = net / open interest. z 3Y = (net − 156w mean) / 156w std.
   3Y pct = share of the last 156 weeks with net at or below today.
@@ -17,6 +17,7 @@ from utils.series import COT_FUTURES
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 GROUPS = {
+    "noncomm": "Non-commercials",
     "lev_money": "Leveraged funds",
     "asset_mgr": "Asset managers",
     "dealer": "Dealers",
